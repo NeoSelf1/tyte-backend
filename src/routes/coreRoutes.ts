@@ -5,16 +5,20 @@ import multer, { Multer } from 'multer'
 require('dotenv').config()
 const coreRouter = express.Router()
 //CLUADE_api_key
-const anthropic = new Anthropic()
+const anthropic = new Anthropic({
+  apiKey: process.env.CLUADE_api_key,
+})
 
 const upload: Multer = multer({ storage: multer.memoryStorage() })
 
 interface FileRequest extends Request {
   file?: Express.Multer.File
 }
+type ImageType = 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
 
 // 사진 내부, 정리가 필요한 물건과 해당 물건의 2차원 좌표를 반환
 coreRouter.post('/', upload.single('image'), async (req: FileRequest, res: Response) => {
+  console.log('Calling Object Detection api...')
   try {
     if (!req.file) {
       return res.status(400).send({ message: 'No file uploaded.' })
@@ -32,8 +36,6 @@ coreRouter.post('/', upload.single('image'), async (req: FileRequest, res: Respo
       default:
         mimeType = `data:${req.file.mimetype};base64,`
     }
-
-    const fullBase64: string = mimeType + base64Image
 
     const message = await anthropic.messages.create({
       model: 'claude-3-5-sonnet-20240620',
@@ -68,6 +70,7 @@ Additional guidelines:
 Please proceed with the analysis and provide your response in the specified JSON format.
 `,
       max_tokens: 1024,
+      temperature: 0,
       messages: [
         {
           role: 'user',
@@ -76,24 +79,32 @@ Please proceed with the analysis and provide your response in the specified JSON
               type: 'image',
               source: {
                 type: 'base64',
-                media_type: image_media_type,
-                data: fullBase64,
+                media_type: req.file.mimetype as ImageType,
+                data: base64Image,
               },
             },
           ],
         },
         {
           role: 'assistant',
-          content: '{',
+          content: [{ type: 'text', text: '{' }],
         },
       ],
     })
-    console.log(message)
 
-    res.status(201).json(message)
+    console.log('API response received')
+    if (message.content[0].type === 'text') {
+      const result = JSON.parse('{' + message.content[0].text)
+
+      console.log('API response successfully received.')
+      res.status(201).json(result)
+    } else {
+      console.log('content type error, sending Empty Array.')
+      res.status(201).json({ items: [], count: 0 })
+    }
   } catch (error) {
-    console.error('Error creating todo:', error)
-    res.status(500).json({ error: 'Internal server error' })
+    console.error('Error processing api call:', error, 'Sending Empty Array.')
+    res.status(201).json({ items: [], count: 0 })
   }
 })
 
