@@ -1,13 +1,13 @@
 import express, { Express } from 'express'
 import todoRouter from './routes/todoRoutes'
 import { PORT } from './lib/utils'
-import coreRouter from './routes/coreRoutes'
-import balanceRouter from './routes/balanceRoutes'
+import dailyStatRouter from './routes/dailyStatRoutes'
 
 const app: Express = express()
+
 app.use(express.json())
 app.use('/api/todo', todoRouter)
-app.use('/api/balance', balanceRouter)
+app.use('/api/dailyStat', dailyStatRouter)
 
 // 전달받은 사진 내부, 정리가 필요한 물건과 해당 물건의 2차원 좌표를 반환
 // app.use('/api/recognize', coreRouter)
