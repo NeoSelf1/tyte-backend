@@ -12,10 +12,27 @@ const todoSchema = new mongoose.Schema({
   isCompleted: { type: Boolean, required: true },
 })
 
-const balanceNumSchema = new mongoose.Schema({
-  date: { type: String, required: true, unique: true },
+const balanceDataSchema = new mongoose.Schema({
+  title: { type: String, required: true },
+  message: { type: String, required: true },
   balanceNum: { type: Number, required: true },
 })
 
+const productivityDataSchema = new mongoose.Schema({
+  title: { type: String, required: true },
+  message: { type: String, required: true },
+  productivityNum: { type: Number, required: true },
+})
+
+const dailyStatSchema = new mongoose.Schema({
+  date: {
+    type: String,
+    required: true,
+    unique: true,
+  },
+  balanceData: balanceDataSchema,
+  productivityData: productivityDataSchema,
+})
+
 export const Todo = mongoose.models?.Todo || mongoose.model('Todo', todoSchema)
-export const BalanceNum = mongoose.models?.BalanceNum || mongoose.model('BalanceNum', balanceNumSchema)
+export const DailyStat = mongoose.models?.DailyStat || mongoose.model('DailyStat', dailyStatSchema)

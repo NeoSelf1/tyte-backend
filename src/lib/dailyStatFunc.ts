@@ -1,4 +1,5 @@
-import { BalanceNum, Todo } from './models'
+import { DailyStat, Todo } from './models'
+import { getBalanceMessage } from './utils'
 
 interface Todo {
   title: string
@@ -13,12 +14,25 @@ interface Todo {
 export const updateBalanceNumByDate = async (date: string) => {
   const todos = await Todo.find({ deadline: date })
   if (todos.length == 0) {
-    await BalanceNum.findOneAndDelete({ date })
+    await DailyStat.findOneAndDelete({ date })
   } else {
     const availableTime = 480
     const balanceNum = calculateBalanceNum(todos, availableTime)
+    const balanceMessage = getBalanceMessage(balanceNum)
+    const balanceData = {
+      title: balanceMessage.title,
+      message: balanceMessage.message,
+      balanceNum,
+    }
+
+    const productivityData = {
+      title: balanceMessage.title,
+      message: balanceMessage.message,
+      productivityNum: 22,
+    }
+
     console.log('updateBalanceNumByDate:', date, '->', balanceNum)
-    await BalanceNum.findOneAndUpdate({ date }, { balanceNum }, { upsert: true, new: true })
+    await DailyStat.findOneAndUpdate({ date }, { balanceData, productivityData }, { upsert: true, new: true })
   }
 }
 
