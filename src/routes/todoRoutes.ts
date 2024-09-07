@@ -1,9 +1,9 @@
 import express, { Request, Response } from 'express'
 import OpenAI from 'openai'
 import { Todo } from '../lib/models'
-import { connectToDb, getTodayDate, TodoCreateMessage } from '../lib/utils'
+import { connectToDb, getTodayDate } from '../lib/utils'
 import { v4 } from 'uuid'
-import { updateBalanceNumByDate } from '../lib/balanceFunc'
+import { updateBalanceNumByDate } from '../lib/dailyStatFunc'
 
 require('dotenv').config()
 const todoRouter = express.Router()
@@ -38,7 +38,7 @@ todoRouter.post('/', async (req: Request<{}, {}, TodoInput>, res: Response) => {
       messages: [
         {
           role: 'system',
-          content: TodoCreateMessage,
+          content: process.env.GPT_message!,
         },
         {
           role: 'user',
