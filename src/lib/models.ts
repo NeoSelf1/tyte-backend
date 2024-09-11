@@ -1,38 +1,67 @@
 import mongoose from 'mongoose'
+import bcrypt from 'bcrypt'
 
-//소분류 내용 저장용 스키마 - 항공/육상/해상...
-const todoSchema = new mongoose.Schema({
-  id: { type: String, required: true },
-  title: { type: String, required: true },
-  isImportant: { type: Boolean, required: true },
-  isLife: { type: Boolean, required: true },
-  difficulty: { type: Number, required: true },
-  estimatedTime: { type: Number, required: true },
-  deadline: { type: String, required: true },
-  isCompleted: { type: Boolean, required: true },
+const tagSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  color: { type: String, required: true }, // Hex color code
+  user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
 })
 
-const balanceDataSchema = new mongoose.Schema({
-  title: { type: String, required: true },
-  message: { type: String, required: true },
-  balanceNum: { type: Number, required: true },
-})
+const todoSchema = new mongoose.Schema(
+  {
+    raw: { type: String, required: true },
+    title: { type: String, required: true },
+    isImportant: { type: Boolean, required: true },
+    tagId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tag' },
+    isLife: { type: Boolean, required: true },
+    difficulty: { type: Number, required: true },
+    estimatedTime: { type: Number, required: true },
+    deadline: { type: String, required: true },
+    isCompleted: { type: Boolean, required: true },
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  },
+  { timestamps: true },
+)
 
-const productivityDataSchema = new mongoose.Schema({
-  title: { type: String, required: true },
-  message: { type: String, required: true },
-  productivityNum: { type: Number, required: true },
+const userSchema = new mongoose.Schema({
+  username: { type: String, required: true, unique: true },
+  password: { type: String, required: true },
+  email: { type: String, required: true, unique: true },
 })
 
 const dailyStatSchema = new mongoose.Schema({
-  date: {
-    type: String,
-    required: true,
-    unique: true,
+  date: { type: String, required: true },
+  user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  balanceData: {
+    title: { type: String, required: true },
+    message: { type: String, required: true },
+    balanceNum: { type: Number, required: true },
   },
-  balanceData: balanceDataSchema,
-  productivityData: productivityDataSchema,
+  productivityData: {
+    productivityNum: { type: Number, required: true },
+  },
+  tagStats: [
+    {
+      tagId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tag' },
+      count: { type: Number, default: 0 },
+    },
+  ],
 })
 
+userSchema.pre('save', async function (next) {
+  if (this.isModified('password')) {
+    this.password = await bcrypt.hash(this.password, 10)
+  }
+  next()
+})
+
+userSchema.methods.comparePassword = async function (candidatePassword: string) {
+  return bcrypt.compare(candidatePassword, this.password)
+}
+
+dailyStatSchema.index({ date: 1, user: 1 }, { unique: true })
+
 export const Todo = mongoose.models?.Todo || mongoose.model('Todo', todoSchema)
+export const Tag = mongoose.models?.Tag || mongoose.model('Tag', tagSchema)
+export const User = mongoose.models?.User || mongoose.model('User', userSchema)
 export const DailyStat = mongoose.models?.DailyStat || mongoose.model('DailyStat', dailyStatSchema)

@@ -1,38 +1,22 @@
-import express, { Request, Response } from 'express'
+import express from 'express'
 import OpenAI from 'openai'
-import { Todo } from '../lib/models'
+import { Tag, Todo } from '../lib/models'
 import { connectToDb, getTodayDate } from '../lib/utils'
-import { v4 } from 'uuid'
-import { updateBalanceNumByDate } from '../lib/dailyStatFunc'
-
+import { updateDailyStats } from '../lib/dailyStatHelper'
+import { authMiddleware, AuthRequest } from '../lib/authMiddleware'
 require('dotenv').config()
 const todoRouter = express.Router()
-
+todoRouter.use(authMiddleware)
 const openai = new OpenAI({ apiKey: process.env.GPT_api_key })
 
-interface TodoInput {
-  text: string
-}
-
-interface RawTodo {
-  title: string
-  isImportant: boolean
-  isLife: boolean
-  difficulty: number
-  estimatedTime: number
-  deadline: string
-}
-
-interface GptResponse {
-  isValid: boolean
-  todos?: [RawTodo]
-}
-
 // Todo 생성
-todoRouter.post('/', async (req: Request<{}, {}, TodoInput>, res: Response) => {
+todoRouter.post('/', async (req: AuthRequest, res) => {
   try {
     await connectToDb()
+    console.log('Todo creating')
+    const user = req.user
     const { text } = req.body
+    const tags = await Tag.find({ user: user._id })
     const message = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
@@ -43,15 +27,17 @@ todoRouter.post('/', async (req: Request<{}, {}, TodoInput>, res: Response) => {
         {
           role: 'user',
           content: `
-Date: ${getTodayDate()}
-Content: ${text}
+날짜: ${getTodayDate()}
+내용: ${text}
+태그 배열: ${tags.map((tag: any) => tag.name)}
 `,
         },
       ],
     })
 
     if (message.choices[0].message.content) {
-      var result: GptResponse = JSON.parse(message.choices[0].message.content)
+      console.log('GPT Response:', message.choices[0].message.content)
+      var result = JSON.parse(message.choices[0].message.content)
       if (!result.isValid) {
         console.log('GPTResponse is not valid')
         res.status(206).json({ error: 'GPTResponse is not valid' })
@@ -59,22 +45,33 @@ Content: ${text}
       }
 
       const formattedResult = await Promise.all(
-        result.todos?.map(async (_todo: RawTodo) => {
-          const newId = v4()
-          const todoWithId = { id: newId, isCompleted: false, ..._todo }
-          const todo = new Todo(todoWithId)
+        result.todos?.map(async (_todo: any) => {
+          // GPT api 반환값 필드이기에, 모델 스키마와 필드명 상이함 | ex. _todo.tag = "개발"
+          const tag: any = await Tag.findOne({ name: _todo.tag, user: user._id })
+          console.log('tag:', tag)
+          const todoData = {
+            raw: text,
+            title: _todo.title,
+            isImportant: _todo.isImportant,
+            isLife: _todo.isLife,
+            tagId: tag ? tag._id.toString() : null,
+            difficulty: _todo.difficulty,
+            estimatedTime: _todo.estimatedTime,
+            deadline: _todo.deadline,
+            isCompleted: false,
+            user: user._id,
+          }
+          const todo = new Todo(todoData)
           await todo.save()
 
-          // 해당 날짜에 대한 균형 지수 업데이트
-          await updateBalanceNumByDate(_todo.deadline)
-          return todoWithId
+          // 해당 날짜에 대한 균형 지수, 태그들 정보 갱신
+          await updateDailyStats(_todo.deadline, user._id)
+          const populatedTodo = await todo.populate('tagId')
+          return populatedTodo // 확인 필요 -> 굳이 다 보내야함?
         }) ?? [],
       )
-
       console.log(text, '->', formattedResult)
       res.status(201).json(formattedResult)
-
-      return true
     } else {
       console.log('AI가 Todo를 분석하는 것을 실패했어요')
       res.status(204).json({ error: 'AI가 Todo를 분석하는 것을 실패했어요' })
@@ -86,35 +83,22 @@ Content: ${text}
 })
 
 // Todo 목록 조회
-todoRouter.get('/', async (req: Request, res: Response) => {
+todoRouter.get('/all/:mode', async (req: AuthRequest, res) => {
   try {
     await connectToDb()
-    const currentDate = new Date()
-    // lean() = 순수 Javascript 객체 반환, exec() 쿼리 실행 및 프로미스 반환
-    const todos = await Todo.find({ isCompleted: false }).lean().exec()
+    const { mode } = req.params
 
-    const sortedTodos = todos.sort((a, b) => {
-      const deadlineA = new Date(a.deadline)
-      const deadlineB = new Date(b.deadline)
-      const diffA = deadlineA.getTime() - currentDate.getTime()
-      const diffB = deadlineB.getTime() - currentDate.getTime()
-      return diffA - diffB
-    })
-
-    res.json(sortedTodos)
-  } catch (error) {
-    console.error('Error fetching todos:', error)
-    res.status(500).json({ error: 'Internal server error' })
-  }
-})
-
-// 특정 날짜에 대한 Todo 목록 조회
-todoRouter.get('/:deadline', async (req: Request, res: Response) => {
-  try {
-    await connectToDb()
-    const { deadline } = req.params
-
-    const todos = await Todo.find({ deadline })
+    const todos = await Todo.find({ user: req.user._id })
+      .populate('tagId')
+      .sort(
+        mode === 'default'
+          ? { deadline: 1, isImportant: -1 }
+          : mode === 'important'
+          ? { isImportant: -1, createdAt: -1 }
+          : { createdAt: -1, isImportant: -1 },
+      )
+      .lean()
+      .exec()
 
     res.json(todos)
   } catch (error) {
@@ -123,73 +107,97 @@ todoRouter.get('/:deadline', async (req: Request, res: Response) => {
   }
 })
 
-todoRouter.delete('/:id', async (req: Request, res: Response) => {
+todoRouter.get('/:deadline', async (req: AuthRequest, res) => {
   try {
     await connectToDb()
-    const { id } = req.params
+    const { deadline } = req.params
 
-    const deletedTodo = await Todo.findOneAndDelete({ id })
+    const userId = req.user._id
 
-    if (!deletedTodo) {
-      return res.status(404).json({ error: 'Todo not found' })
-    }
+    const todos = await Todo.find({ deadline, user: userId })
+      .populate('tagId') // 태그 정보도 함께 가져옴
+      // 먼저 중요한 Todo (isImportant: true)를 나열, 그 다음 생성 시간의 역순으로 정렬
+      .sort({ isImportant: -1, createdAt: -1 })
 
-    // 삭제된 Todo의 날짜에 대한 일일 균형지수 재계산
-    await updateBalanceNumByDate(deletedTodo.deadline)
-
-    res.json(deletedTodo)
+    res.json(todos)
   } catch (error) {
-    console.error('Error deleting todo:', error)
+    console.error('Error fetching todos for specific date:', error)
     res.status(500).json({ error: 'Internal server error' })
   }
 })
 
-todoRouter.put('/:id', async (req: Request, res: Response) => {
+todoRouter.put('/:id', async (req: AuthRequest, res) => {
   try {
     await connectToDb()
     const { id } = req.params
-    const updatedTodoData = req.body
+    const _updatedTodo = req.body
+    // Swift에서는 전체 Tag 객체의 접근이 필요한 상태였기 때문에, 변경 이후 Tag 객체가 반환된다.
+    // Node.js 단에서의 모델 스키마를 준수하기 위해 tagId를 본래 String값으로 재구성해줘야한다.
+
+    const updatedTodoData = { ..._updatedTodo, tagId: _updatedTodo.tagId ? _updatedTodo.tagId._id : null }
 
     // 기존 Todo 찾기
-    const existingTodo = await Todo.findOne({ id })
+    const existingTodo = await Todo.findOne({ _id: id, user: req.user._id })
     if (!existingTodo) {
       return res.status(404).json({ error: 'Todo not found' })
     }
 
     // Todo 업데이트
-    const updatedTodo = await Todo.findOneAndUpdate({ id }, updatedTodoData, { new: true })
+    const updatedTodo = await Todo.findOneAndUpdate({ _id: id, user: req.user._id }, updatedTodoData, { new: true })
 
     // 날짜가 변경된 경우 양쪽 날짜의 균형지수를 모두 재계산
     if (existingTodo.deadline !== updatedTodo.deadline) {
-      await updateBalanceNumByDate(existingTodo.deadline)
-      await updateBalanceNumByDate(updatedTodo.deadline)
+      // 해당 날짜에 대한 균형 지수, 태그들 정보 갱신
+      await updateDailyStats(existingTodo.deadline, req.user._id.toString())
+      await updateDailyStats(updatedTodo.deadline, req.user._id.toString())
     } else {
       // 날짜가 변경되지 않은 경우 해당 날짜의 균형지수만 재계산
-      await updateBalanceNumByDate(updatedTodo.deadline)
+      await updateDailyStats(updatedTodo.deadline, req.user._id.toString())
     }
-
-    res.json(updatedTodo)
+    console.log('Todo Editted:', updatedTodo)
+    res.json(updatedTodo._id)
   } catch (error) {
     console.error('Error updating todo:', error)
     res.status(500).json({ error: 'Internal server error' })
   }
 })
 
-todoRouter.patch('/toggle/:id', async (req: Request, res: Response) => {
+todoRouter.delete('/:id', async (req: AuthRequest, res) => {
+  try {
+    await connectToDb()
+    const { id } = req.params
+
+    const deletedTodo = await Todo.findOneAndDelete({ _id: id, user: req.user._id })
+
+    if (!deletedTodo) {
+      return res.status(404).json({ error: 'Todo not found' })
+    }
+
+    // 삭제된 Todo의 날짜에 대한 일일 균형지수 재계산
+    await updateDailyStats(deletedTodo.deadline, req.user._id.toString())
+
+    res.json(deletedTodo._id)
+  } catch (error) {
+    console.error('Error deleting todo:', error)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+todoRouter.patch('/toggle/:id', async (req: AuthRequest, res) => {
   try {
     const { id } = req.params
 
     await connectToDb()
 
-    const todo = await Todo.findOne({ id })
+    const todo = await Todo.findOne({ _id: id, user: req.user._id })
     if (!todo) {
       return res.status(404).json({ error: 'Todo not found' })
     }
 
     todo.isCompleted = !todo.isCompleted
     await todo.save()
-
-    res.json(todo)
+    const populatedTodo = await todo.populate('tagId')
+    res.json(populatedTodo)
   } catch (error) {
     console.error('Error toggling todo completion:', error)
     res.status(500).json({ error: 'Internal server error' })
