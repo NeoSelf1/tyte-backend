@@ -16,8 +16,9 @@ dailyStatRouter.get('/', async (req: AuthRequest, res) => {
     // '1'은 오름차순(ascending), '-1'은 내림차순(descending)을 나타냅니다.
     const dailyStats = await DailyStat.find({
       user: userId,
-    }).sort({ date: 1 })
-
+    })
+      .sort({ date: 1 })
+      .populate({ path: 'tagStats.tagId', select: 'color' })
     res.json(dailyStats)
   } catch (error) {
     console.error('Error fetching daily stats:', error)
