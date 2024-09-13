@@ -50,14 +50,15 @@ export const updateDailyStats = async (date: string, userId: string) => {
       message: balanceMessage.message,
       balanceNum,
     }
-    const productivityData = {
-      productivityNum: 22,
-    }
+    const productivityNum = 22 // 추후 수정 필요
+
+    const center = [Math.random() * 0.6 + 0.2, Math.random() * 0.6 + 0.2]
+    console.log('DailyStats updated')
     // $set:{필드명 : value} 는 명시한 필드만 바꾸고, 나머지는 변경하지 않는다. 없을 경우 새로운 필드로 추가.
     // 만일 {tagStats}로 할 경우, find에 참고한 필드를 제외한 모든 필드들이 tagStats로 완전 대체된다.
     await DailyStat.findOneAndUpdate(
       { date, user: userId },
-      { $set: { tagStats, balanceData, productivityData } },
+      { $set: { balanceData, productivityNum, tagStats, center } },
       { upsert: true, new: true },
     )
   }
