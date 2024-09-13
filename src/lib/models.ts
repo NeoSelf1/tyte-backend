@@ -37,15 +37,14 @@ const dailyStatSchema = new mongoose.Schema({
     message: { type: String, required: true },
     balanceNum: { type: Number, required: true },
   },
-  productivityData: {
-    productivityNum: { type: Number, required: true },
-  },
+  productivityNum: { type: Number, required: true },
   tagStats: [
     {
       tagId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tag' },
       count: { type: Number, default: 0 },
     },
   ],
+  center: { type: [Number], required: true },
 })
 
 userSchema.pre('save', async function (next) {
