@@ -196,6 +196,7 @@ todoRouter.patch('/toggle/:id', async (req: AuthRequest, res) => {
 
     todo.isCompleted = !todo.isCompleted
     await todo.save()
+    await updateDailyStats(todo.deadline, req.user._id.toString())
     const populatedTodo = await todo.populate('tagId')
     res.json(populatedTodo)
   } catch (error) {
