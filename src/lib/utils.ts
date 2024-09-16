@@ -42,11 +42,16 @@ export const getBalanceMessage = (balanceNum: number) => {
 }
 
 export const getTodayDate = () => {
+  const options = { timeZone: 'Asia/Seoul', hour12: false }
   const today = new Date()
-  const year = today.getFullYear()
-  const month = String(today.getMonth() + 1).padStart(2, '0')
-  const day = String(today.getDate()).padStart(2, '0')
-  const dayOfWeek = ['일', '월', '화', '수', '목', '금', '토'][today.getDay()]
-  console.log(`Getting today's date for GPT: ${year}-${month}-${day}-${dayOfWeek}`)
+  const koreaTime = today.toLocaleString('en-US', options)
+  const koreaDate = new Date(koreaTime)
+
+  const year = koreaDate.getFullYear()
+  const month = String(koreaDate.getMonth() + 1).padStart(2, '0')
+  const day = String(koreaDate.getDate()).padStart(2, '0')
+  const dayOfWeek = ['일', '월', '화', '수', '목', '금', '토'][koreaDate.getDay()]
+
+  console.log(`Getting today's date for GPT (Korea Time): ${year}-${month}-${day}-${dayOfWeek}`)
   return `${year}-${month}-${day}-${dayOfWeek}`
 }
