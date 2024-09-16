@@ -10,7 +10,7 @@ interface JwtPayload {
   _id: string
 }
 
-const isDevelopment = true
+const isDevelopment = false
 
 export const authMiddleware = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
