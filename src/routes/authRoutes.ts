@@ -12,6 +12,9 @@ authRouter.post('/register', async (req, res) => {
     const { username, email, password } = req.body
     const user = new User({ username, email, password })
     await user.save()
+
+    await user.createDefaultTags()
+
     const token = jwt.sign({ _id: user._id }, process.env.JWT_SECRET!)
     res.status(201).send({ user, token })
   } catch (error) {

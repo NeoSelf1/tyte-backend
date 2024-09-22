@@ -54,6 +54,22 @@ userSchema.pre('save', async function (next) {
   next()
 })
 
+userSchema.methods.createDefaultTags = async function () {
+  const defaultTags = [
+    { name: '일', color: '7B68EE' },
+    { name: '자유시간', color: 'F0E68C' },
+  ]
+
+  for (const tagData of defaultTags) {
+    const newTag = new Tag({
+      name: tagData.name,
+      color: tagData.color,
+      user: this._id,
+    })
+    await newTag.save()
+  }
+}
+
 userSchema.methods.comparePassword = async function (candidatePassword: string) {
   return bcrypt.compare(candidatePassword, this.password)
 }

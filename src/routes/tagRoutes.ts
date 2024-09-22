@@ -1,5 +1,5 @@
 import express from 'express'
-import { Tag, Todo } from '../lib/models'
+import { DailyStat, Tag, Todo } from '../lib/models'
 import { connectToDb } from '../lib/utils'
 import { authMiddleware, AuthRequest } from '../lib/authMiddleware'
 
@@ -14,7 +14,7 @@ tagRouter.post('/', async (req: AuthRequest, res) => {
     const { name, color } = req.body
     const newTag = new Tag({ name, color, user: req.user._id })
     await newTag.save()
-    res.status(201).json(newTag)
+    res.json(newTag._id)
   } catch (error) {
     console.error('Error creating tag:', error)
     res.status(500).json({ error: 'Internal server error' })
@@ -41,7 +41,8 @@ tagRouter.put('/:id', async (req: AuthRequest, res) => {
     if (!updatedTag) {
       return res.status(404).json({ error: 'Tag not found' })
     }
-    res.json(updatedTag)
+
+    res.json(updatedTag._id)
   } catch (error) {
     console.error('Error updating tag:', error)
     res.status(500).json({ error: 'Internal server error' })
@@ -56,10 +57,13 @@ tagRouter.delete('/:id', async (req: AuthRequest, res) => {
     if (!deletedTag) {
       return res.status(404).json({ error: 'Tag not found' })
     }
-    // $pull = 특정 조건에 맞는 요소 제거하는데에 사용.
-    await Todo.updateMany({ tagId: id, user: req.user._id }, { $pull: { tagId: id } })
+    // api 호출한 유저에 대한 DailyStat 모델들 모두 호출 -> tagStats 배열에서 삭제된 태그 ID를 지닌 요소 {tagID, count} 제거
+    await DailyStat.updateMany({ user: req.user._id }, { $pull: { tagStats: { tagId: id } } })
 
-    res.json(deletedTag)
+    // $pull = 특정 조건에 맞는 요소 제거하는데에 사용.
+    await Todo.updateMany({ tagId: id, user: req.user._id }, { $set: { tagId: null } })
+
+    res.json(deletedTag._id)
   } catch (error) {
     console.error('Error deleting tag:', error)
     res.status(500).json({ error: 'Internal server error' })

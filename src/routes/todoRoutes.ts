@@ -74,7 +74,7 @@ todoRouter.post('/', async (req: AuthRequest, res) => {
       res.status(201).json(formattedResult)
     } else {
       console.log('AI가 Todo를 분석하는 것을 실패했어요')
-      res.status(204).json({ error: 'AI가 Todo를 분석하는 것을 실패했어요' })
+      res.status(208).json({ error: 'invalid' })
     }
   } catch (error) {
     console.error('Error creating todo:', error)

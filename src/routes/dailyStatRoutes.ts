@@ -18,13 +18,15 @@ dailyStatRouter.get('/', async (req: AuthRequest, res) => {
       user: userId,
     })
       .sort({ date: 1 })
-      .populate({ path: 'tagStats.tagId', select: 'color' })
+      .populate({ path: 'tagStats.tagId' })
+
     res.json(dailyStats)
   } catch (error) {
     console.error('Error fetching daily stats:', error)
     res.status(500).json({ error: 'Internal server error' })
   }
 })
+
 dailyStatRouter.get('/:range', async (req: AuthRequest, res) => {
   try {
     await connectToDb()
@@ -43,8 +45,9 @@ dailyStatRouter.get('/:range', async (req: AuthRequest, res) => {
       date: { $gte: startDate, $lte: endDate },
     })
       .sort({ date: 1 })
-      .populate({ path: 'tagStats.tagId', select: 'color' })
+      .populate({ path: 'tagStats.tagId' })
 
+    console.log('fetchInRange', dailyStats)
     res.json(dailyStats)
   } catch (error) {
     console.error('Error fetching monthly stats:', error)

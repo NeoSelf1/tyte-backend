@@ -35,7 +35,7 @@ export const updateDailyStats = async (date: string, userId: string) => {
 
       if (todo.isCompleted) {
         productivityNum +=
-          (todo.difficulty / 5) * DIFFICULTY_WEIGHT + (todo.estimatedTime / availableTime) * TIME_WEIGHT
+          (todo.difficulty / 5) * DIFFICULTY_WEIGHT * 50 + (todo.estimatedTime / availableTime) * TIME_WEIGHT * 30
       }
     })
 
