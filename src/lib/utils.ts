@@ -55,3 +55,95 @@ export const getTodayDate = () => {
   console.log(`Getting today's date for GPT (Korea Time): ${year}-${month}-${day}-${dayOfWeek}`)
   return `${year}-${month}-${day}-${dayOfWeek}`
 }
+
+// 이메일 유효성 검사 함수
+export const isValidEmail = (email: string) => {
+  // 간단한 이메일 정규식
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  return emailRegex.test(email)
+}
+
+// 사용자 이름 유효성 검사 함수
+export const isValidUsername = (username: string) => {
+  // 예: 3-20자, 영문, 숫자, 언더스코어만 허용
+  const usernameRegex = /^[a-zA-Z0-9_]{3,20}$/
+  return usernameRegex.test(username)
+}
+
+// 비밀번호 강도 검사 함수
+export const isStrongPassword = (password: string) => {
+  // 예: 최소 8자, 대문자, 소문자, 숫자, 특수문자 포함
+  const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/
+  return passwordRegex.test(password)
+}
+
+export const convertKoreanDateToYYYYMMDD = (koreanDate: string) => {
+  const options = { timeZone: 'Asia/Seoul', hour12: false }
+  const today = new Date()
+  const koreaTime = today.toLocaleString('en-US', options)
+  const targetDate = new Date(koreaTime)
+  const weekdays = ['일', '월', '화', '수', '목', '금', '토']
+  const weekdayRegex = new RegExp(`(${weekdays.join('|')})요일`)
+
+  const weekMatch = koreanDate.match(/(다다음주|다음주|(\d+)주)/)
+  const weekdayMatch = koreanDate.match(weekdayRegex)
+  const daysLaterMatch = koreanDate.match(/(\d+)일\s*(뒤|후)/)
+
+  if (daysLaterMatch) {
+    console.log('daysLaterMatch')
+    const daysToAdd = parseInt(daysLaterMatch[1])
+    targetDate.setDate(targetDate.getDate() + daysToAdd)
+  } else if (weekMatch) {
+    console.log('weekMatch')
+    let weeks = 1
+    if (weekMatch[1] === '다다음주') {
+      weeks = 2
+    } else if (weekMatch[1] === '다음주') {
+      weeks = 1
+    } else if (weekMatch[2]) {
+      weeks = parseInt(weekMatch[2])
+    }
+    // 현재 요일부터 다음 주 시작까지의 날짜 계산
+    if (weekdayMatch) {
+      console.log('weekdayMatch')
+      // 요일이 존재할 경우
+      const daysUntilNextWeek = 7 - targetDate.getDay() + 1
+      // 가장 가까운 미래의 월요일로 이동.
+      targetDate.setDate(targetDate.getDate() + daysUntilNextWeek + (weeks - 1) * 7)
+
+      const targetDay = weekdays.indexOf(weekdayMatch[1])
+      // 요일에 맞춰 날짜 추가
+      targetDate.setDate(targetDate.getDate() + ((targetDay + 7 - targetDate.getDay()) % 7))
+    } else {
+      // 요일 없이 다음주만 있을 경우, 단순히 7의 배수만큼 더하기
+      targetDate.setDate(targetDate.getDate() + weeks * 7)
+    }
+  } else if (koreanDate.includes('다음달')) {
+    console.log('다음달')
+    targetDate.setMonth(targetDate.getMonth() + 1)
+    const dayMatch = koreanDate.match(/(\d+)일/)
+    if (dayMatch) {
+      targetDate.setDate(parseInt(dayMatch[1]))
+    } else {
+      targetDate.setDate(1)
+    }
+  } else if (koreanDate === '내일') {
+    console.log('내일')
+    targetDate.setDate(targetDate.getDate() + 1)
+  } else if (koreanDate === '모레' || koreanDate === '내일모레') {
+    console.log('내일모레')
+    targetDate.setDate(targetDate.getDate() + 2)
+  } else if (weekdayMatch) {
+    const targetDay = weekdays.indexOf(weekdayMatch[1])
+    targetDate.setDate(targetDate.getDate() + ((targetDay + 7 - targetDate.getDay()) % 7))
+  } else {
+    console.log('예외 케이스', koreanDate)
+  }
+
+  const year = targetDate.getFullYear()
+  const month = String(targetDate.getMonth() + 1).padStart(2, '0')
+  const day = String(targetDate.getDate()).padStart(2, '0')
+
+  return `${year}-${month}-${day}`
+}
+

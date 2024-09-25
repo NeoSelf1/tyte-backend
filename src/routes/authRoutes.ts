@@ -1,20 +1,37 @@
 import express from 'express'
 import jwt from 'jsonwebtoken'
 import { User } from '../lib/models'
-import { connectToDb } from '../lib/utils'
+import { connectToDb, isStrongPassword, isValidEmail, isValidUsername } from '../lib/utils'
+import { OAuth2Client } from 'google-auth-library'
 
 const authRouter = express.Router()
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID)
 
 authRouter.post('/register', async (req, res) => {
   try {
-    console.log('/register')
     await connectToDb()
     const { username, email, password } = req.body
+
+    // 이메일 유효성 검사
+    if (!isValidEmail(email)) {
+      return res.status(422).send({ error: 'Invalid email format' })
+    }
+
+    // 사용자 이름 유효성 검사 = 3-20자, 영문, 숫자, 언더스코어만 허용
+    if (!isValidUsername(username)) {
+      return res.status(423).send({ error: 'Invalid username' })
+    }
+
+    // 이메일 중복 검사
+    const existingUser = await User.findOne({ email })
+    if (existingUser) {
+      return res.status(409).send({ error: 'Email already exists' })
+    }
     const user = new User({ username, email, password })
     await user.save()
-
     await user.createDefaultTags()
 
+    console.log('회원가입 성공')
     const token = jwt.sign({ _id: user._id }, process.env.JWT_SECRET!)
     res.status(201).send({ user, token })
   } catch (error) {
@@ -28,14 +45,104 @@ authRouter.post('/login', async (req, res) => {
     await connectToDb()
     const { email, password } = req.body
     const user = await User.findOne({ email })
-    if (!user || !(await user.comparePassword(password))) {
-      throw new Error('Invalid login credentials')
+
+    if (!user) {
+      return res.status(425).send({ error: 'User not found' })
     }
+
+    if (!(await user.comparePassword(password))) {
+      return res.status(411).send({ error: 'Wrong password' })
+    }
+
     const token = jwt.sign({ _id: user._id }, process.env.JWT_SECRET!)
-    res.send({ user, token })
+    const filteredUser = {
+      _id: user._id,
+      username: user.username,
+      email: user.email,
+    }
+    console.log('로그인 성공')
+    res.send({ user: filteredUser, token })
   } catch (error) {
+    console.log('here')
     res.status(400).send(error)
   }
 })
 
+authRouter.post('/check', async (req, res) => {
+  try {
+    await connectToDb()
+    const { email } = req.body
+
+    if (!email || email.trim().length === 0) {
+      res.status(400).json({ error: 'Email is required' })
+      return
+    }
+    // Check if the username already exists
+    const existingUser = await User.findOne({ email: email.toLowerCase() })
+
+    if (existingUser) {
+      // 기존 Email 존재
+      res.status(200).json({ isValid: true })
+      return
+    } else {
+      res.status(220).json({ isValid: false })
+    }
+  } catch (error) {
+    console.error('Check username error:', error)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+authRouter.post('/google', async (req, res) => {
+  try {
+    await connectToDb()
+    const { token } = req.body
+    const ticket = await client.verifyIdToken({
+      idToken: token,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    })
+    const payload = ticket.getPayload()
+    if (!payload) {
+      return res.status(401).send({ error: 'no payload' })
+    }
+    const { email, name } = payload
+
+    let user = await User.findOne({ email })
+
+    if (!user) {
+      // If the user doesn't exist, create a new one
+      user = new User({
+        username: name,
+        email: email,
+        password: Math.random().toString(36).slice(-8), // Generate a random password
+      })
+
+      await user.save()
+      await user.createDefaultTags()
+    } else {
+      // Update existing user's information
+      user.username = name
+      await user.save()
+    }
+    console.log('login with', email)
+    const jwtToken = jwt.sign({ _id: user._id }, process.env.JWT_SECRET!, { expiresIn: '1d' })
+    res.send({
+      user: {
+        _id: user._id,
+        username: user.username,
+        email: user.email,
+      },
+      token: jwtToken,
+    })
+  } catch (error: any) {
+    console.error('Google login error:', error)
+    if (error.message.includes('Token used too late')) {
+      res.status(401).send({ error: 'Token expired. Please try again.' })
+    } else if (error.message.includes('Invalid token')) {
+      res.status(401).send({ error: 'Invalid token. Please try again.' })
+    } else {
+      res.status(500).send({ error: 'Internal server error' })
+    }
+  }
+})
 export default authRouter

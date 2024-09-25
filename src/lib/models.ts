@@ -24,7 +24,7 @@ const todoSchema = new mongoose.Schema(
 )
 
 const userSchema = new mongoose.Schema({
-  username: { type: String, required: true, unique: true },
+  username: { type: String, required: true },
   password: { type: String, required: true },
   email: { type: String, required: true, unique: true },
 })
@@ -56,7 +56,7 @@ userSchema.pre('save', async function (next) {
 
 userSchema.methods.createDefaultTags = async function () {
   const defaultTags = [
-    { name: '일', color: '7B68EE' },
+    { name: '일', color: 'FF0000' },
     { name: '자유시간', color: 'F0E68C' },
   ]
 

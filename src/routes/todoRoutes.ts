@@ -1,7 +1,7 @@
 import express from 'express'
 import OpenAI from 'openai'
 import { Tag, Todo } from '../lib/models'
-import { connectToDb, getTodayDate } from '../lib/utils'
+import { connectToDb, convertKoreanDateToYYYYMMDD, getTodayDate } from '../lib/utils'
 import { updateDailyStats } from '../lib/dailyStatHelper'
 import { authMiddleware, AuthRequest } from '../lib/authMiddleware'
 require('dotenv').config()
@@ -57,7 +57,7 @@ todoRouter.post('/', async (req: AuthRequest, res) => {
             tagId: tag ? tag._id.toString() : null,
             difficulty: _todo.difficulty,
             estimatedTime: _todo.estimatedTime,
-            deadline: _todo.deadline,
+            deadline: convertKoreanDateToYYYYMMDD(_todo.deadline),
             isCompleted: false,
             user: user._id,
           }
