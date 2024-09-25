@@ -71,9 +71,9 @@ export const isValidUsername = (username: string) => {
 }
 
 // 비밀번호 강도 검사 함수
-export const isStrongPassword = (password: string) => {
+export const isValidPassword = (password: string) => {
   // 예: 최소 8자, 대문자, 소문자, 숫자, 특수문자 포함
-  const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/
+  const passwordRegex = /^.{8,}$/
   return passwordRegex.test(password)
 }
 
@@ -147,3 +147,24 @@ export const convertKoreanDateToYYYYMMDD = (koreanDate: string) => {
   return `${year}-${month}-${day}`
 }
 
+async function updateDataScript() {
+  try {
+    connectToDb()
+
+    // User 모델 가져오기
+    const User = mongoose.model('User')
+
+    // username_1 인덱스 제거
+    await User.collection.dropIndex('username_1')
+
+    console.log('Username index removed successfully for all users')
+  } catch (error: any) {
+    if (error.code === 27) {
+      console.log('Index does not exist, no action needed')
+    } else {
+      console.error('Error removing username index:', error)
+    }
+  }
+}
+
+// updateDataScript()

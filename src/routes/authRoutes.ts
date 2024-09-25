@@ -1,7 +1,7 @@
 import express from 'express'
 import jwt from 'jsonwebtoken'
 import { User } from '../lib/models'
-import { connectToDb, isStrongPassword, isValidEmail, isValidUsername } from '../lib/utils'
+import { connectToDb, isValidEmail, isValidPassword, isValidUsername } from '../lib/utils'
 import { OAuth2Client } from 'google-auth-library'
 
 const authRouter = express.Router()
@@ -20,6 +20,11 @@ authRouter.post('/register', async (req, res) => {
     // 사용자 이름 유효성 검사 = 3-20자, 영문, 숫자, 언더스코어만 허용
     if (!isValidUsername(username)) {
       return res.status(423).send({ error: 'Invalid username' })
+    }
+
+    // 사용자 이름 유효성 검사 = 3-20자, 영문, 숫자, 언더스코어만 허용
+    if (!isValidPassword(password)) {
+      return res.status(424).send({ error: 'Invalid password' })
     }
 
     // 이메일 중복 검사
