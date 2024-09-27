@@ -1,5 +1,6 @@
 import mongoose from 'mongoose'
 import { BalanceIndexRange, balanceNumMessages } from './data'
+import { isDevelopment } from './authMiddleware'
 require('dotenv').config()
 
 interface Connection {
@@ -16,7 +17,10 @@ export const connectToDb = async (): Promise<void> => {
       return
     }
     console.log('connecting To Database')
-    const db = await mongoose.connect(process.env.MONGO as unknown as string)
+
+    const db = await mongoose.connect(
+      isDevelopment ? (process.env.MONGO_DEV as unknown as string) : (process.env.MONGO_PROD as unknown as string),
+    )
     connection.isConnected = db.connections[0].readyState
   } catch (error: any) {
     console.log(error)
@@ -78,6 +82,7 @@ export const isValidPassword = (password: string) => {
 }
 
 export const convertKoreanDateToYYYYMMDD = (koreanDate: string) => {
+  console.log('koreanDate:', koreanDate)
   const options = { timeZone: 'Asia/Seoul', hour12: false }
   const today = new Date()
   const koreaTime = today.toLocaleString('en-US', options)

@@ -27,7 +27,6 @@ todoRouter.post('/', async (req: AuthRequest, res) => {
         {
           role: 'user',
           content: `
-날짜: ${getTodayDate()}
 내용: ${text}
 태그 배열: ${tags.map((tag: any) => tag.name)}
 `,
@@ -48,7 +47,7 @@ todoRouter.post('/', async (req: AuthRequest, res) => {
         result.todos?.map(async (_todo: any) => {
           // GPT api 반환값 필드이기에, 모델 스키마와 필드명 상이함 | ex. _todo.tag = "개발"
           const tag: any = await Tag.findOne({ name: _todo.tag, user: user._id })
-          console.log('tag:', tag)
+
           const todoData = {
             raw: text,
             title: _todo.title,
@@ -57,7 +56,7 @@ todoRouter.post('/', async (req: AuthRequest, res) => {
             tagId: tag ? tag._id.toString() : null,
             difficulty: _todo.difficulty,
             estimatedTime: _todo.estimatedTime,
-            deadline: convertKoreanDateToYYYYMMDD(_todo.deadline),
+            deadline: _todo.isDeadlineRelative ? convertKoreanDateToYYYYMMDD(_todo.deadline) : _todo.deadline,
             isCompleted: false,
             user: user._id,
           }
@@ -65,7 +64,7 @@ todoRouter.post('/', async (req: AuthRequest, res) => {
           await todo.save()
 
           // 해당 날짜에 대한 균형 지수, 태그들 정보 갱신
-          await updateDailyStats(_todo.deadline, user._id)
+          await updateDailyStats(todoData.deadline, user._id)
           const populatedTodo = await todo.populate('tagId')
           return populatedTodo // 확인 필요 -> 굳이 다 보내야함?
         }) ?? [],
