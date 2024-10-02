@@ -47,7 +47,6 @@ dailyStatRouter.get('/:range', async (req: AuthRequest, res) => {
       .sort({ date: 1 })
       .populate({ path: 'tagStats.tagId' })
 
-    console.log('fetchInRange', dailyStats)
     res.json(dailyStats)
   } catch (error) {
     console.error('Error fetching monthly stats:', error)

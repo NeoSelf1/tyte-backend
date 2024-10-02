@@ -38,9 +38,7 @@ todoRouter.post('/', async (req: AuthRequest, res) => {
       console.log('GPT Response:', message.choices[0].message.content)
       var result = JSON.parse(message.choices[0].message.content)
       if (!result.isValid) {
-        console.log('GPTResponse is not valid')
-        res.status(206).json({ error: 'GPTResponse is not valid' })
-        return
+        return res.status(402).json()
       }
 
       const formattedResult = await Promise.all(
@@ -72,8 +70,7 @@ todoRouter.post('/', async (req: AuthRequest, res) => {
       console.log(text, '->', formattedResult)
       res.status(201).json(formattedResult)
     } else {
-      console.log('AI가 Todo를 분석하는 것을 실패했어요')
-      res.status(208).json({ error: 'invalid' })
+      return res.status(402).json()
     }
   } catch (error) {
     console.error('Error creating todo:', error)

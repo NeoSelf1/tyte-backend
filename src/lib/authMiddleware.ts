@@ -10,19 +10,22 @@ interface JwtPayload {
   _id: string
 }
 
-const isDevelopment = false
+// DB 주소 및 임시 user 객체 생성 여부
+export const isDBDevelopment = false
+
+export const isUserDevelopment = false
 
 export const authMiddleware = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const token = req.header('Authorization')?.replace('Bearer ', '')
     var user = null
 
-    if (isDevelopment) {
+    if (isUserDevelopment) {
       user = {
-        _id: '66dea7d2df1974ec7353476b',
-        username: '1',
-        password: '$2b$10$FfTos2OJ5lAa7rlZ3eL2W.Ms9hJbZ2iNW6OWnsY2yyPSBT8Sfu3Hm',
-        email: '1',
+        _id: '66e3f76192082f0bf2b93b13',
+        username: 'Test',
+        password: '$2b$10$dMzifSoR86OIk4X.fNVoWecsdHRZ5MzFm9PvLehUuaEmmPJ7cOOeC',
+        email: 'test@naver.com',
       }
     } else {
       if (!token) {
