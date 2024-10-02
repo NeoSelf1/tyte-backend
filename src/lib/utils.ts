@@ -1,6 +1,6 @@
 import mongoose from 'mongoose'
 import { BalanceIndexRange, balanceNumMessages } from './data'
-import { isDevelopment } from './authMiddleware'
+import { isDBDevelopment } from './authMiddleware'
 require('dotenv').config()
 
 interface Connection {
@@ -19,7 +19,7 @@ export const connectToDb = async (): Promise<void> => {
     console.log('connecting To Database')
 
     const db = await mongoose.connect(
-      isDevelopment ? (process.env.MONGO_DEV as unknown as string) : (process.env.MONGO_PROD as unknown as string),
+      isDBDevelopment ? (process.env.MONGO_DEV as unknown as string) : (process.env.MONGO_PROD as unknown as string),
     )
     connection.isConnected = db.connections[0].readyState
   } catch (error: any) {

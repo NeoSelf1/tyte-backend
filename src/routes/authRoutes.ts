@@ -1,11 +1,14 @@
 import express from 'express'
 import jwt from 'jsonwebtoken'
+import { OAuth2Client } from 'google-auth-library'
+import crypto from 'crypto'
+import axios from 'axios'
 import { User } from '../lib/models'
 import { connectToDb, isValidEmail, isValidPassword, isValidUsername } from '../lib/utils'
-import { OAuth2Client } from 'google-auth-library'
 
 const authRouter = express.Router()
-const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID)
+
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID)
 
 authRouter.post('/register', async (req, res) => {
   try {
@@ -60,12 +63,14 @@ authRouter.post('/login', async (req, res) => {
     }
 
     const token = jwt.sign({ _id: user._id }, process.env.JWT_SECRET!)
+
     const filteredUser = {
       _id: user._id,
       username: user.username,
       email: user.email,
     }
-    console.log('로그인 성공')
+
+    console.log('로그인:', user.username)
     res.send({ user: filteredUser, token })
   } catch (error) {
     console.log('here')
@@ -98,47 +103,133 @@ authRouter.post('/check', async (req, res) => {
   }
 })
 
+async function handleUser(email: string, name: string) {
+  let user = await User.findOne({ email })
+
+  if (!user) {
+    user = new User({
+      username: name,
+      email: email,
+      password: crypto.randomBytes(20).toString('hex'), // 랜덤 비밀번호 생성
+    })
+
+    await user.save()
+    await user.createDefaultTags()
+  } else {
+    user.username = name
+    await user.save()
+  }
+
+  const jwtToken = jwt.sign({ _id: user._id }, process.env.JWT_SECRET!, { expiresIn: '1d' })
+
+  return {
+    user: {
+      _id: user._id,
+      username: user.username,
+      email: user.email,
+    },
+    token: jwtToken,
+  }
+}
+
+interface AppleIdTokenPayload {
+  iss: string
+  aud: string
+  exp: number
+  iat: number
+  sub: string
+  c_hash: string
+  email: string
+  email_verified: string
+  auth_time: number
+  nonce_supported: boolean
+}
+
+async function verifyAppleToken(idToken: string): Promise<AppleIdTokenPayload> {
+  try {
+    const { kid, alg } = jwt.decode(idToken, { complete: true })?.header as { kid: string; alg: string }
+
+    const appleKeysResponse = await axios.get('https://appleid.apple.com/auth/keys')
+    const keys = appleKeysResponse.data.keys
+    const key = keys.find((k: any) => k.kid === kid)
+
+    if (!key) {
+      throw new Error('Apple public key not found')
+    }
+
+    const pubKey = crypto.createPublicKey({
+      key: key,
+      format: 'jwk',
+    })
+
+    const verifiedToken = jwt.verify(idToken, pubKey, { algorithms: [alg as jwt.Algorithm] })
+
+    const payload = verifiedToken as unknown
+    if (typeof payload === 'object' && payload !== null && 'sub' in payload && 'email' in payload) {
+      return payload as AppleIdTokenPayload
+    } else {
+      throw new Error('Token payload does not match expected format')
+    }
+  } catch (error) {
+    console.error('Apple token verification failed:', error)
+    throw new Error('Invalid Apple ID token')
+  }
+}
+
+// Apple 로그인 처리 함수
+authRouter.post('/apple', async (req, res) => {
+  try {
+    await connectToDb()
+    const { identityToken } = req.body
+    if (!identityToken) {
+      return res.status(400).json({ error: 'Identity token and Authorization Code is required' })
+    }
+
+    const payload = await verifyAppleToken(identityToken)
+    const result = await handleUser(payload.email, payload.sub)
+
+    res.status(200).json(result)
+  } catch (error: any) {
+    console.error('Apple login error:', error)
+    if (error.name === 'JsonWebTokenError') {
+      res.status(401).json({ error: 'Invalid token' })
+    } else if (error.name === 'TokenExpiredError') {
+      res.status(401).json({ error: 'Token expired' })
+    } else {
+      res.status(500).json({ error: 'Internal server error' })
+    }
+  }
+})
+
+// Google 로그인 처리 함수
 authRouter.post('/google', async (req, res) => {
   try {
     await connectToDb()
     const { token } = req.body
-    const ticket = await client.verifyIdToken({
+
+    if (!token) {
+      return res.status(400).json({ error: 'Token is required' })
+    }
+
+    const ticket = await googleClient.verifyIdToken({
       idToken: token,
       audience: process.env.GOOGLE_CLIENT_ID,
     })
+
     const payload = ticket.getPayload()
     if (!payload) {
-      return res.status(401).send({ error: 'no payload' })
+      return res.status(401).send({ error: 'Invalid token' })
     }
+
     const { email, name } = payload
 
-    let user = await User.findOne({ email })
-
-    if (!user) {
-      // If the user doesn't exist, create a new one
-      user = new User({
-        username: name,
-        email: email,
-        password: Math.random().toString(36).slice(-8), // Generate a random password
-      })
-
-      await user.save()
-      await user.createDefaultTags()
-    } else {
-      // Update existing user's information
-      user.username = name
-      await user.save()
+    if (!email || !name) {
+      return res.status(401).json({ error: '구글로그인 에러' })
     }
-    console.log('login with', email)
-    const jwtToken = jwt.sign({ _id: user._id }, process.env.JWT_SECRET!, { expiresIn: '1d' })
-    res.send({
-      user: {
-        _id: user._id,
-        username: user.username,
-        email: user.email,
-      },
-      token: jwtToken,
-    })
+
+    const result = await handleUser(email, name)
+
+    res.status(200).json(result)
   } catch (error: any) {
     console.error('Google login error:', error)
     if (error.message.includes('Token used too late')) {
@@ -150,4 +241,27 @@ authRouter.post('/google', async (req, res) => {
     }
   }
 })
+
+authRouter.delete('/:email', async (req, res) => {
+  try {
+    await connectToDb()
+
+    const { email } = req.params
+
+    // 이메일로 사용자 찾기
+    const user = await User.findOne({ email: email.toLowerCase() })
+
+    if (!user) {
+      return res.status(404).json()
+    }
+    console.log(email, '유저 삭제됨')
+    // 사용자 삭제
+    await User.findByIdAndDelete(user._id)
+
+    res.json(user._id)
+  } catch (error) {
+    res.status(400).send(error)
+  }
+})
+
 export default authRouter
