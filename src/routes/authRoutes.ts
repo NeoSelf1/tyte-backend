@@ -10,6 +10,44 @@ const authRouter = express.Router()
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID)
 
+// 앱 처음 진입 시, 이전에 로그인한 이력이 있을 때, 검증위한 함수
+authRouter.post('/validate-token', async (req, res) => {
+  try {
+    await connectToDb()
+    const { token } = req.body
+
+    if (!token) {
+      return res.status(400).json({ error: 'Token is required', code: 'TOKEN_REQUIRED' })
+    }
+
+    try {
+      // JWT 토큰 검증
+      const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { _id: string }
+      
+      // 사용자 존재 여부 확인
+      const user = await User.findById(decoded._id)
+
+      if (!user) {
+        return res.status(404).json({ error: 'User not found', code: 'USER_NOT_FOUND' })
+      }
+
+      // 토큰이 유효하고 사용자가 존재하면 성공 응답
+      res.status(200).json({ 
+        isValid: true})
+    } catch (error) {
+      if (error instanceof jwt.TokenExpiredError) {
+        return res.status(402).json()
+      } else if (error instanceof jwt.JsonWebTokenError) {
+        return res.status(401).json()
+      } else {
+        throw error
+      }
+    }
+  } catch (error) {
+    res.status(500).json()
+  }
+})
+
 authRouter.post('/register', async (req, res) => {
   try {
     await connectToDb()
@@ -120,7 +158,7 @@ async function handleUser(email: string, name: string) {
     await user.save()
   }
 
-  const jwtToken = jwt.sign({ _id: user._id }, process.env.JWT_SECRET!, { expiresIn: '1d' })
+  const jwtToken = jwt.sign({ _id: user._id }, process.env.JWT_SECRET!, { expiresIn: '7d' })
 
   return {
     user: {

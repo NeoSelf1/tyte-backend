@@ -37,7 +37,7 @@ dailyStatRouter.get('/:range', async (req: AuthRequest, res) => {
     const [startYear, startMonth, startDay] = startTime.split('-')
     const [endYear, endMonth, endDay] = endTime.split('-')
 
-    const startDate = `${startYear}-${startMonth}-${startDay}`
+    const startDate = `${startYear}-${startMonth}-01`
     const endDate = `${endYear}-${endMonth}-${endDay}` // This will work for all months, as MongoDB will automatically handle the correct last day
 
     const dailyStats = await DailyStat.find({
@@ -46,6 +46,7 @@ dailyStatRouter.get('/:range', async (req: AuthRequest, res) => {
     })
       .sort({ date: 1 })
       .populate({ path: 'tagStats.tagId' })
+    console.log(dailyStats)
 
     res.json(dailyStats)
   } catch (error) {

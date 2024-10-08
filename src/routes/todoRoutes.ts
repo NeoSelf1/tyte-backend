@@ -38,7 +38,7 @@ todoRouter.post('/', async (req: AuthRequest, res) => {
       console.log('GPT Response:', message.choices[0].message.content)
       var result = JSON.parse(message.choices[0].message.content)
       if (!result.isValid) {
-        return res.status(402).json()
+        return res.status(431).json()
       }
 
       const formattedResult = await Promise.all(
@@ -70,7 +70,7 @@ todoRouter.post('/', async (req: AuthRequest, res) => {
       console.log(text, '->', formattedResult)
       res.status(201).json(formattedResult)
     } else {
-      return res.status(402).json()
+      return res.status(431).json()
     }
   } catch (error) {
     console.error('Error creating todo:', error)

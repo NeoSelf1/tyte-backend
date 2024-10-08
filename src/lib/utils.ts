@@ -82,7 +82,6 @@ export const isValidPassword = (password: string) => {
 }
 
 export const convertKoreanDateToYYYYMMDD = (koreanDate: string) => {
-  console.log('koreanDate:', koreanDate)
   const options = { timeZone: 'Asia/Seoul', hour12: false }
   const today = new Date()
   const koreaTime = today.toLocaleString('en-US', options)
