@@ -7,6 +7,12 @@ const tagSchema = new mongoose.Schema({
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
 })
 
+const heartRateSchema = new mongoose.Schema({
+  heartRate: { type: Number, required: true },
+},
+{ timestamps: true }
+)
+
 const todoSchema = new mongoose.Schema(
   {
     raw: { type: String, required: true },
@@ -80,3 +86,5 @@ export const Todo = mongoose.models?.Todo || mongoose.model('Todo', todoSchema)
 export const Tag = mongoose.models?.Tag || mongoose.model('Tag', tagSchema)
 export const User = mongoose.models?.User || mongoose.model('User', userSchema)
 export const DailyStat = mongoose.models?.DailyStat || mongoose.model('DailyStat', dailyStatSchema)
+
+export const HeartRate = mongoose.models?.HeartRate || mongoose.model('HeartRate', heartRateSchema)

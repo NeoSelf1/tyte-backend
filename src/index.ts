@@ -4,6 +4,7 @@ import todoRouter from './routes/todoRoutes'
 import tagRouter from './routes/tagRoutes'
 import authRouter from './routes/authRoutes'
 import dailyStatRouter from './routes/dailyStatRoutes'
+import heartRateRouter from './routes/heartRateRoutes'
 
 import { PORT } from './lib/utils'
 
@@ -16,6 +17,8 @@ app.use('/api/auth', authRouter)
 app.use('/api/todo', todoRouter)
 app.use('/api/tag', tagRouter)
 app.use('/api/dailyStat', dailyStatRouter)
+
+app.use('/api/heartRate',heartRateRouter)
 // 전달받은 사진 내부, 정리가 필요한 물건과 해당 물건의 2차원 좌표를 반환
 // app.use('/api/recognize', coreRouter)
 
