@@ -60,6 +60,19 @@ export const getTodayDate = () => {
   return `${year}-${month}-${day}-${dayOfWeek}`
 }
 
+export const getTodayTime = () => {
+  const now = new Date();
+  
+  now.setHours(now.getHours() + 9);
+  
+  const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(now.getUTCDate()).padStart(2, '0');
+  const hours = String(now.getUTCHours()).padStart(2, '0');
+  const minutes = String(now.getUTCMinutes()).padStart(2, '0');
+  const seconds = String(now.getUTCSeconds()).padStart(2, '0');
+
+  return `${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
 // 이메일 유효성 검사 함수
 export const isValidEmail = (email: string) => {
   // 간단한 이메일 정규식

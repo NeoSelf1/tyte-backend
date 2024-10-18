@@ -1,5 +1,5 @@
 import express from 'express'
-import { connectToDb } from "../lib/utils"
+import { connectToDb, getTodayTime } from "../lib/utils"
 import { HeartRate } from "../lib/models"
 
 const heartRateRouter = express.Router()
@@ -8,7 +8,7 @@ heartRateRouter.post('/', async (req, res) => {
   try {
     await connectToDb()
     const { heartRate } = req.body
-    console.log("heartRate:",heartRate,"in",Date())
+    console.log("heartRate:",heartRate,"in",getTodayTime())
     const newHeartRate = new HeartRate({ heartRate:heartRate })
     await newHeartRate.save()
     res.json(newHeartRate._id)
