@@ -7,12 +7,6 @@ const tagSchema = new mongoose.Schema({
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
 })
 
-const heartRateSchema = new mongoose.Schema({
-  heartRate: { type: Number, required: true },
-},
-{ timestamps: true }
-)
-
 const todoSchema = new mongoose.Schema(
   {
     raw: { type: String, required: true },
@@ -79,6 +73,15 @@ userSchema.methods.createDefaultTags = async function () {
 userSchema.methods.comparePassword = async function (candidatePassword: string) {
   return bcrypt.compare(candidatePassword, this.password)
 }
+
+const heartRateSchema = new mongoose.Schema(
+  {
+    heartRate: { type: Number, required: true },
+    index: { type: Number, required: true },
+    time: { type: String, required: true },
+  },
+  { timestamps: true },
+)
 
 dailyStatSchema.index({ date: 1, user: 1 }, { unique: true })
 

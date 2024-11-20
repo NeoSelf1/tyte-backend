@@ -7,10 +7,9 @@ const heartRateRouter = express.Router()
 heartRateRouter.post('/', async (req, res) => {
   try {
     await connectToDb()
-    const { heartRate } = req.body
-    const [heartRateData, time] = heartRate.split(' ')
-    console.log(heartRateData, 'in', time, '/ Present time:', getTodayTime())
-    const newHeartRate = new HeartRate({ heartRate: heartRateData, time })
+    const { heartRate, time, index } = req.body
+    console.log(heartRate, 'in', time, '/ Present time:', getTodayTime())
+    const newHeartRate = new HeartRate({ heartRate, time, index })
     await newHeartRate.save()
     res.json(newHeartRate._id)
   } catch (error) {
