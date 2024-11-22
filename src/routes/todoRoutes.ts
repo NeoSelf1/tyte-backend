@@ -1,9 +1,11 @@
 import express from 'express'
 import OpenAI from 'openai'
 import { Tag, Todo } from '../lib/models'
-import { connectToDb, convertKoreanDateToYYYYMMDD, getTodayDate } from '../lib/utils'
+import { connectToDb, convertKoreanDateToYYYYMMDD } from '../lib/utils'
 import { updateDailyStats } from '../lib/dailyStatHelper'
 import { authMiddleware, AuthRequest } from '../lib/authMiddleware'
+import mongoose from 'mongoose'
+
 require('dotenv').config()
 const todoRouter = express.Router()
 todoRouter.use(authMiddleware)
@@ -13,8 +15,8 @@ const openai = new OpenAI({ apiKey: process.env.GPT_api_key })
 todoRouter.post('/', async (req: AuthRequest, res) => {
   try {
     await connectToDb()
-    console.log('Todo creating')
     const user = req.user
+
     const { text } = req.body
     const tags = await Tag.find({ user: user._id })
     const message = await openai.chat.completions.create({
@@ -35,7 +37,6 @@ todoRouter.post('/', async (req: AuthRequest, res) => {
     })
 
     if (message.choices[0].message.content) {
-      console.log('GPT Response:', message.choices[0].message.content)
       var result = JSON.parse(message.choices[0].message.content)
       if (!result.isValid) {
         return res.status(402).json()
@@ -67,39 +68,14 @@ todoRouter.post('/', async (req: AuthRequest, res) => {
           return populatedTodo // 확인 필요 -> 굳이 다 보내야함?
         }) ?? [],
       )
-      console.log(text, '->', formattedResult)
-      res.status(201).json(formattedResult)
+      console.log(formattedResult)
+      res.status(200).json(formattedResult)
     } else {
       return res.status(402).json()
     }
   } catch (error) {
     console.error('Error creating todo:', error)
-    res.status(500).json({ error: 'Internal server error' })
-  }
-})
-
-// Todo 목록 조회
-todoRouter.get('/all/:mode', async (req: AuthRequest, res) => {
-  try {
-    await connectToDb()
-    const { mode } = req.params
-
-    const todos = await Todo.find({ user: req.user._id })
-      .populate('tagId')
-      .sort(
-        mode === 'default'
-          ? { deadline: 1, isImportant: -1 }
-          : mode === 'important'
-          ? { isImportant: -1, createdAt: -1 }
-          : { createdAt: -1, isImportant: -1 },
-      )
-      .lean()
-      .exec()
-
-    res.json(todos)
-  } catch (error) {
-    console.error('Error fetching todos:', error)
-    res.status(500).json({ error: 'Internal server error' })
+    res.status(500).json()
   }
 })
 
@@ -107,7 +83,6 @@ todoRouter.get('/:deadline', async (req: AuthRequest, res) => {
   try {
     await connectToDb()
     const { deadline } = req.params
-
     const userId = req.user._id
 
     const todos = await Todo.find({ deadline, user: userId })
@@ -115,10 +90,29 @@ todoRouter.get('/:deadline', async (req: AuthRequest, res) => {
       // 먼저 중요한 Todo (isImportant: true)를 나열, 그 다음 생성 시간의 역순으로 정렬
       .sort({ isImportant: -1, createdAt: -1 })
 
-    res.json(todos)
+    return res.status(200).json(todos)
   } catch (error) {
     console.error('Error fetching todos for specific date:', error)
-    res.status(500).json({ error: 'Internal server error' })
+    res.status(500).json()
+  }
+})
+
+todoRouter.get('/friend/:friendId/:deadline', async (req: AuthRequest, res) => {
+  try {
+    await connectToDb()
+    const { friendId, deadline } = req.params
+    const todos = await Todo.find({
+      user: new mongoose.Types.ObjectId(friendId),
+      deadline,
+    })
+      .populate('tagId') // 태그 정보도 함께 가져옴
+      // 먼저 중요한 Todo (isImportant: true)를 나열, 그 다음 생성 시간의 역순으로 정렬
+      .sort({ isImportant: -1, createdAt: -1 })
+
+    return res.status(200).json(todos)
+  } catch (error) {
+    console.error('Error fetching todos for specific date:', error)
+    res.status(500).json()
   }
 })
 
@@ -135,11 +129,13 @@ todoRouter.put('/:id', async (req: AuthRequest, res) => {
     // 기존 Todo 찾기
     const existingTodo = await Todo.findOne({ _id: id, user: req.user._id })
     if (!existingTodo) {
-      return res.status(404).json({ error: 'Todo not found' })
+      return res.status(403).json()
     }
 
     // Todo 업데이트
-    const updatedTodo = await Todo.findOneAndUpdate({ _id: id, user: req.user._id }, updatedTodoData, { new: true })
+    const updatedTodo = await Todo.findOneAndUpdate({ _id: id, user: req.user._id }, updatedTodoData, {
+      new: true,
+    }).populate('tagId')
 
     // 날짜가 변경된 경우 양쪽 날짜의 균형지수를 모두 재계산
     if (existingTodo.deadline !== updatedTodo.deadline) {
@@ -150,11 +146,10 @@ todoRouter.put('/:id', async (req: AuthRequest, res) => {
       // 날짜가 변경되지 않은 경우 해당 날짜의 균형지수만 재계산
       await updateDailyStats(updatedTodo.deadline, req.user._id.toString())
     }
-    console.log('Todo Editted:', updatedTodo)
-    res.json(updatedTodo._id)
+    return res.status(200).json(updatedTodo)
   } catch (error) {
     console.error('Error updating todo:', error)
-    res.status(500).json({ error: 'Internal server error' })
+    res.status(500).json()
   }
 })
 
@@ -162,20 +157,19 @@ todoRouter.delete('/:id', async (req: AuthRequest, res) => {
   try {
     await connectToDb()
     const { id } = req.params
-
-    const deletedTodo = await Todo.findOneAndDelete({ _id: id, user: req.user._id })
+    const deletedTodo = await Todo.findOneAndDelete({ _id: id, user: req.user._id }).populate('tagId')
 
     if (!deletedTodo) {
-      return res.status(404).json({ error: 'Todo not found' })
+      return res.status(403).json()
     }
 
     // 삭제된 Todo의 날짜에 대한 일일 균형지수 재계산
     await updateDailyStats(deletedTodo.deadline, req.user._id.toString())
 
-    res.json(deletedTodo._id)
+    return res.status(200).json(deletedTodo)
   } catch (error) {
     console.error('Error deleting todo:', error)
-    res.status(500).json({ error: 'Internal server error' })
+    res.status(500).json()
   }
 })
 
@@ -187,17 +181,18 @@ todoRouter.patch('/toggle/:id', async (req: AuthRequest, res) => {
 
     const todo = await Todo.findOne({ _id: id, user: req.user._id })
     if (!todo) {
-      return res.status(404).json({ error: 'Todo not found' })
+      return res.status(403).json()
     }
-
     todo.isCompleted = !todo.isCompleted
     await todo.save()
+
     await updateDailyStats(todo.deadline, req.user._id.toString())
+
     const populatedTodo = await todo.populate('tagId')
-    res.json(populatedTodo)
+    return res.status(200).json(populatedTodo)
   } catch (error) {
     console.error('Error toggling todo completion:', error)
-    res.status(500).json({ error: 'Internal server error' })
+    res.status(500).json()
   }
 })
 

@@ -47,6 +47,43 @@ const dailyStatSchema = new mongoose.Schema({
   center: { type: [Number], required: true },
 })
 
+const friendSchema = new mongoose.Schema(
+  {
+    user1Id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+    },
+    user2Id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+    },
+  },
+  { timestamps: true },
+)
+
+const friendRequestSchema = new mongoose.Schema(
+  {
+    fromUserId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+    },
+    toUserId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+    },
+    status: {
+      type: String,
+      enum: ['pending', 'accepted', 'rejected'],
+      default: 'pending',
+    },
+  },
+  { timestamps: true },
+)
+
 userSchema.pre('save', async function (next) {
   if (this.isModified('password')) {
     this.password = await bcrypt.hash(this.password, 10)
@@ -56,8 +93,9 @@ userSchema.pre('save', async function (next) {
 
 userSchema.methods.createDefaultTags = async function () {
   const defaultTags = [
-    { name: '일', color: 'FF0000' },
-    { name: '자유시간', color: 'F0E68C' },
+    { name: '학습', color: 'FF0000' },
+    { name: '여가', color: 'F0E68C' },
+    { name: '건강', color: '00FFFF' },
   ]
 
   for (const tagData of defaultTags) {
@@ -89,5 +127,7 @@ export const Todo = mongoose.models?.Todo || mongoose.model('Todo', todoSchema)
 export const Tag = mongoose.models?.Tag || mongoose.model('Tag', tagSchema)
 export const User = mongoose.models?.User || mongoose.model('User', userSchema)
 export const DailyStat = mongoose.models?.DailyStat || mongoose.model('DailyStat', dailyStatSchema)
+export const Friend = mongoose.models?.Friend || mongoose.model('Friend', friendSchema)
+export const FriendRequest = mongoose.models?.FriendRequest || mongoose.model('FriendRequest', friendRequestSchema)
 
 export const HeartRate = mongoose.models?.HeartRate || mongoose.model('HeartRate', heartRateSchema)

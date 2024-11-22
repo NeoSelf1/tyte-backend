@@ -4,47 +4,61 @@ import { OAuth2Client } from 'google-auth-library'
 import crypto from 'crypto'
 import axios from 'axios'
 import { User } from '../lib/models'
-import { connectToDb, isValidEmail, isValidPassword, isValidUsername } from '../lib/utils'
+import { connectToDb } from '../lib/utils'
+import { AuthRequest } from '../lib/authMiddleware'
 
 const authRouter = express.Router()
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID)
+let expirationString = '31d'
+
+authRouter.post('/validate-token', async (req, res) => {
+  try {
+    await connectToDb()
+    const { token } = req.body
+
+    if (!token) {
+      return res.status(400).json()
+    }
+
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { _id: string }
+      const user = await User.findById(decoded._id)
+      if (!user) {
+        return res.status(401).json()
+      }
+
+      return res.status(200).json({ isValid: true })
+    } catch (error: any) {
+      if (error.name === 'TokenExpiredError') {
+        return res.status(200).json({ isValid: false })
+      }
+      if (error.name === 'JsonWebTokenError') {
+        return res.status(401).json()
+      }
+      res.status(500).json()
+    }
+  } catch (error) {
+    console.error('Token validation error:', error)
+    return res.status(500).json()
+  }
+})
 
 authRouter.post('/register', async (req, res) => {
   try {
     await connectToDb()
     const { username, email, password } = req.body
 
-    // 이메일 유효성 검사
-    if (!isValidEmail(email)) {
-      return res.status(422).send({ error: 'Invalid email format' })
-    }
-
-    // 사용자 이름 유효성 검사 = 3-20자, 영문, 숫자, 언더스코어만 허용
-    if (!isValidUsername(username)) {
-      return res.status(423).send({ error: 'Invalid username' })
-    }
-
-    // 사용자 이름 유효성 검사 = 3-20자, 영문, 숫자, 언더스코어만 허용
-    if (!isValidPassword(password)) {
-      return res.status(424).send({ error: 'Invalid password' })
-    }
-
-    // 이메일 중복 검사
-    const existingUser = await User.findOne({ email })
-    if (existingUser) {
-      return res.status(409).send({ error: 'Email already exists' })
-    }
     const user = new User({ username, email, password })
     await user.save()
     await user.createDefaultTags()
 
-    console.log('회원가입 성공')
-    const token = jwt.sign({ _id: user._id }, process.env.JWT_SECRET!)
-    res.status(201).send({ user, token })
+    const token = jwt.sign({ _id: user._id }, process.env.JWT_SECRET!, { expiresIn: expirationString })
+
+    return res.status(200).json({ user, token })
   } catch (error) {
     console.log(error)
-    res.status(400).send(error)
+    res.status(500).json()
   }
 })
 
@@ -55,14 +69,12 @@ authRouter.post('/login', async (req, res) => {
     const user = await User.findOne({ email })
 
     if (!user) {
-      return res.status(425).send({ error: 'User not found' })
+      return res.status(403).json()
     }
 
     if (!(await user.comparePassword(password))) {
-      return res.status(411).send({ error: 'Wrong password' })
+      return res.status(406).json()
     }
-
-    const token = jwt.sign({ _id: user._id }, process.env.JWT_SECRET!)
 
     const filteredUser = {
       _id: user._id,
@@ -70,10 +82,9 @@ authRouter.post('/login', async (req, res) => {
       email: user.email,
     }
 
-    console.log('로그인:', user.username)
-    res.send({ user: filteredUser, token })
+    const token = jwt.sign({ _id: user._id }, process.env.JWT_SECRET!, { expiresIn: expirationString })
+    return res.status(200).json({ user: filteredUser, token })
   } catch (error) {
-    console.log('here')
     res.status(400).send(error)
   }
 })
@@ -83,23 +94,16 @@ authRouter.post('/check', async (req, res) => {
     await connectToDb()
     const { email } = req.body
 
-    if (!email || email.trim().length === 0) {
-      res.status(400).json({ error: 'Email is required' })
-      return
-    }
-    // Check if the username already exists
     const existingUser = await User.findOne({ email: email.toLowerCase() })
 
     if (existingUser) {
-      // 기존 Email 존재
-      res.status(200).json({ isValid: true })
-      return
+      return res.status(200).json({ isValid: true })
     } else {
-      res.status(220).json({ isValid: false })
+      return res.status(200).json({ isValid: false })
     }
   } catch (error) {
     console.error('Check username error:', error)
-    res.status(500).json({ error: 'Internal server error' })
+    res.status(500).json()
   }
 })
 
@@ -110,7 +114,7 @@ async function handleUser(email: string, name: string) {
     user = new User({
       username: name,
       email: email,
-      password: crypto.randomBytes(20).toString('hex'), // 랜덤 비밀번호 생성
+      password: crypto.randomBytes(20).toString('hex'),
     })
 
     await user.save()
@@ -120,7 +124,7 @@ async function handleUser(email: string, name: string) {
     await user.save()
   }
 
-  const jwtToken = jwt.sign({ _id: user._id }, process.env.JWT_SECRET!, { expiresIn: '1d' })
+  const jwtToken = jwt.sign({ _id: user._id }, process.env.JWT_SECRET!, { expiresIn: '31d' })
 
   return {
     user: {
@@ -180,23 +184,23 @@ async function verifyAppleToken(idToken: string): Promise<AppleIdTokenPayload> {
 authRouter.post('/apple', async (req, res) => {
   try {
     await connectToDb()
-    const { identityToken } = req.body
-    if (!identityToken) {
-      return res.status(400).json({ error: 'Identity token and Authorization Code is required' })
+    const { token } = req.body
+    if (!token) {
+      return res.status(400).json()
     }
 
-    const payload = await verifyAppleToken(identityToken)
+    const payload = await verifyAppleToken(token)
     const result = await handleUser(payload.email, payload.sub)
 
-    res.status(200).json(result)
+    return res.status(200).json(result)
   } catch (error: any) {
     console.error('Apple login error:', error)
     if (error.name === 'JsonWebTokenError') {
-      res.status(401).json({ error: 'Invalid token' })
+      return res.status(401).json()
     } else if (error.name === 'TokenExpiredError') {
-      res.status(401).json({ error: 'Token expired' })
+      return res.status(401).json()
     } else {
-      res.status(500).json({ error: 'Internal server error' })
+      return res.status(500).json()
     }
   }
 })
@@ -208,7 +212,7 @@ authRouter.post('/google', async (req, res) => {
     const { token } = req.body
 
     if (!token) {
-      return res.status(400).json({ error: 'Token is required' })
+      return res.status(400).json()
     }
 
     const ticket = await googleClient.verifyIdToken({
@@ -218,49 +222,39 @@ authRouter.post('/google', async (req, res) => {
 
     const payload = ticket.getPayload()
     if (!payload) {
-      return res.status(401).send({ error: 'Invalid token' })
+      return res.status(401).send()
     }
 
     const { email, name } = payload
 
     if (!email || !name) {
-      return res.status(401).json({ error: '구글로그인 에러' })
+      return res.status(401).json()
     }
-
     const result = await handleUser(email, name)
 
-    res.status(200).json(result)
+    return res.status(200).json(result)
   } catch (error: any) {
     console.error('Google login error:', error)
     if (error.message.includes('Token used too late')) {
-      res.status(401).send({ error: 'Token expired. Please try again.' })
+      return res.status(401).json()
     } else if (error.message.includes('Invalid token')) {
-      res.status(401).send({ error: 'Invalid token. Please try again.' })
+      return res.status(401).json()
     } else {
-      res.status(500).send({ error: 'Internal server error' })
+      return res.status(500).json()
     }
   }
 })
 
-authRouter.delete('/:email', async (req, res) => {
+authRouter.delete('/', async (req: AuthRequest, res) => {
   try {
     await connectToDb()
 
-    const { email } = req.params
+    const userId = req.user._id
+    await User.findByIdAndDelete(userId)
 
-    // 이메일로 사용자 찾기
-    const user = await User.findOne({ email: email.toLowerCase() })
-
-    if (!user) {
-      return res.status(404).json()
-    }
-    console.log(email, '유저 삭제됨')
-    // 사용자 삭제
-    await User.findByIdAndDelete(user._id)
-
-    res.json(user._id)
+    return res.status(200).json()
   } catch (error) {
-    res.status(400).send(error)
+    res.status(500).json()
   }
 })
 
