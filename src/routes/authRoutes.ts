@@ -12,6 +12,15 @@ const authRouter = express.Router()
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID)
 let expirationString = '31d'
 
+authRouter.get('/version', async (req, res) => {
+  try {
+    return res.status(200).json({ newVersion: '1.1', minVersion: '1.1' })
+  } catch (error) {
+    console.error('Token validation error:', error)
+    return res.status(500).json()
+  }
+})
+
 authRouter.post('/validate-token', async (req, res) => {
   try {
     await connectToDb()

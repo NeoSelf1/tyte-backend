@@ -26,7 +26,6 @@ tagRouter.get('/', async (req: AuthRequest, res) => {
     await connectToDb()
     const tags = await Tag.find({ user: req.user._id })
 
-    console.log("get Tags",new Date())
     return res.status(200).json(tags)
   } catch (error) {
     console.error('Error fetching tags:', error)
@@ -44,7 +43,7 @@ tagRouter.put('/:id', async (req: AuthRequest, res) => {
       return res.status(403).json()
     }
 
-    return res.status(200).json({ id : updatedTag._id })
+    return res.status(200).json({ id: updatedTag._id })
   } catch (error) {
     console.error('Error updating tag:', error)
     res.status(500).json()

@@ -16,7 +16,7 @@ socialRouter.get('/search/:query', async (req: AuthRequest, res) => {
     const { query } = req.params
 
     if (!query) {
-      return res.status(200).json([])  
+      return res.status(200).json([])
     }
 
     // 현재 사용자의 친구 목록 조회
@@ -112,7 +112,7 @@ socialRouter.get('/search/:query', async (req: AuthRequest, res) => {
       },
     ])
 
-    return res.status(200).json(users)  
+    return res.status(200).json(users)
   } catch (error) {
     console.error('Error in searchUsers:', error)
     res.status(500).json()
@@ -164,7 +164,7 @@ socialRouter.get('/', async (req: AuthRequest, res) => {
       },
     ])
 
-    return res.status(200).json(friends)  
+    return res.status(200).json(friends)
   } catch (error) {
     console.error('Error in getFriends:', error)
     res.status(500).json()
@@ -215,7 +215,7 @@ socialRouter.post('/request/:userId', async (req: AuthRequest, res) => {
 
     await friendRequest.save()
 
-    res.status(200).json({id:toUserId})
+    res.status(200).json({ id: toUserId })
   } catch (error) {
     console.error('Error in sendFriendRequest:', error)
     res.status(500).json()
@@ -247,7 +247,7 @@ socialRouter.patch('/accept/:requestId', async (req: AuthRequest, res) => {
     friendRequest.status = 'accepted'
     await friendRequest.save()
 
-    res.status(200).json({id:friendRequest.toUserId})
+    res.status(200).json({ id: friendRequest.toUserId })
   } catch (error) {
     console.error('Error in acceptFriendRequest:', error)
     res.status(500).json()
