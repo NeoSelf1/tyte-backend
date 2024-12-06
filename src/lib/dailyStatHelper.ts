@@ -57,7 +57,6 @@ export const updateDailyStats = async (date: string, userId: string) => {
       balanceNum,
     }
     const center = [Math.random() * 0.6 + 0.2, Math.random() * 0.6 + 0.2]
-    console.log('DailyStats updated')
 
     await DailyStat.findOneAndUpdate(
       { date, user: userId },

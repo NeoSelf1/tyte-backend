@@ -1,6 +1,7 @@
 import mongoose from 'mongoose'
 import { BalanceIndexRange, balanceNumMessages } from './data'
 import { isDBDevelopment } from './authMiddleware'
+import { Tag, User } from './models'
 require('dotenv').config()
 
 interface Connection {
@@ -56,29 +57,21 @@ export const getTodayDate = () => {
   const day = String(koreaDate.getDate()).padStart(2, '0')
   const dayOfWeek = ['일', '월', '화', '수', '목', '금', '토'][koreaDate.getDay()]
 
-  console.log(`Getting today's date for GPT (Korea Time): ${year}-${month}-${day}-${dayOfWeek}`)
   return `${year}-${month}-${day}-${dayOfWeek}`
 }
 
-// 이메일 유효성 검사 함수
-export const isValidEmail = (email: string) => {
-  // 간단한 이메일 정규식
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-  return emailRegex.test(email)
-}
+export const getTodayTime = () => {
+  const now = new Date()
 
-// 사용자 이름 유효성 검사 함수
-export const isValidUsername = (username: string) => {
-  // 예: 3-20자, 영문, 숫자, 언더스코어만 허용
-  const usernameRegex = /^[a-zA-Z0-9_]{3,20}$/
-  return usernameRegex.test(username)
-}
+  now.setHours(now.getHours() + 9)
 
-// 비밀번호 강도 검사 함수
-export const isValidPassword = (password: string) => {
-  // 예: 최소 8자, 대문자, 소문자, 숫자, 특수문자 포함
-  const passwordRegex = /^.{8,}$/
-  return passwordRegex.test(password)
+  const month = String(now.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(now.getUTCDate()).padStart(2, '0')
+  const hours = String(now.getUTCHours()).padStart(2, '0')
+  const minutes = String(now.getUTCMinutes()).padStart(2, '0')
+  const seconds = String(now.getUTCSeconds()).padStart(2, '0')
+
+  return `${month}-${day} ${hours}:${minutes}:${seconds}`
 }
 
 export const convertKoreanDateToYYYYMMDD = (koreanDate: string) => {
@@ -151,25 +144,3 @@ export const convertKoreanDateToYYYYMMDD = (koreanDate: string) => {
 
   return `${year}-${month}-${day}`
 }
-
-async function updateDataScript() {
-  try {
-    connectToDb()
-
-    // User 모델 가져오기
-    const User = mongoose.model('User')
-
-    // username_1 인덱스 제거
-    await User.collection.dropIndex('username_1')
-
-    console.log('Username index removed successfully for all users')
-  } catch (error: any) {
-    if (error.code === 27) {
-      console.log('Index does not exist, no action needed')
-    } else {
-      console.error('Error removing username index:', error)
-    }
-  }
-}
-
-// updateDataScript()

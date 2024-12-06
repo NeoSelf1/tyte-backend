@@ -4,53 +4,70 @@ import express from 'express'
 import { DailyStat } from '../lib/models'
 import { connectToDb } from '../lib/utils'
 import { authMiddleware, AuthRequest } from '../lib/authMiddleware'
+import mongoose from 'mongoose'
 
 const dailyStatRouter = express.Router()
+
 dailyStatRouter.use(authMiddleware)
 
-dailyStatRouter.get('/', async (req: AuthRequest, res) => {
+dailyStatRouter.get('/:deadline', async (req: AuthRequest, res) => {
   try {
     await connectToDb()
     const userId = req.user._id
-    // { date: 1 }는 'date' 필드를 기준으로 오름차순 정렬을 의미합니다.
-    // '1'은 오름차순(ascending), '-1'은 내림차순(descending)을 나타냅니다.
+
+    const { deadline } = req.params
+
+    const dailyStat = await DailyStat.findOne({
+      user: userId,
+      date: deadline,
+    }).populate({ path: 'tagStats.tagId' })
+
+    return res.status(200).json(dailyStat)
+  } catch (error) {
+    console.error('Error fetching daily stat:', error)
+    res.status(500).json()
+  }
+})
+
+dailyStatRouter.get('/all/:yearMonth', async (req: AuthRequest, res) => {
+  try {
+    await connectToDb()
+    const userId = req.user._id
+    const { yearMonth } = req.params
+
     const dailyStats = await DailyStat.find({
       user: userId,
-    })
-      .sort({ date: 1 })
-      .populate({ path: 'tagStats.tagId' })
+      date: { $regex: `^${yearMonth}` },
+    }).populate({ path: 'tagStats.tagId' })
 
-    res.json(dailyStats)
+    return res.status(200).json(dailyStats)
   } catch (error) {
-    console.error('Error fetching daily stats:', error)
+    console.error('Error fetching monthly stats:', error)
     res.status(500).json({ error: 'Internal server error' })
   }
 })
 
-dailyStatRouter.get('/:range', async (req: AuthRequest, res) => {
+dailyStatRouter.get('/friend/:friendId/:yearMonth', async (req: AuthRequest, res) => {
   try {
     await connectToDb()
-    const userId = req.user._id
-    const { range } = req.params
-    const [startTime, endTime] = range.split(',')
+    const { friendId, yearMonth } = req.params
 
-    const [startYear, startMonth, startDay] = startTime.split('-')
-    const [endYear, endMonth, endDay] = endTime.split('-')
+    const [year, month] = yearMonth.split('-').map((num) => parseInt(num))
 
-    const startDate = `${startYear}-${startMonth}-${startDay}`
-    const endDate = `${endYear}-${endMonth}-${endDay}` // This will work for all months, as MongoDB will automatically handle the correct last day
+    const startDate = new Date(year, month - 1, 1)
+    const endDate = new Date(year, month, 0)
 
+    const startDateStr = startDate.toISOString().split('T')[0]
+    const endDateStr = endDate.toISOString().split('T')[0]
     const dailyStats = await DailyStat.find({
-      user: userId,
-      date: { $gte: startDate, $lte: endDate },
-    })
-      .sort({ date: 1 })
-      .populate({ path: 'tagStats.tagId' })
+      user: new mongoose.Types.ObjectId(friendId),
+      date: { $gte: startDateStr, $lte: endDateStr },
+    }).populate({ path: 'tagStats.tagId' })
 
-    res.json(dailyStats)
+    return res.status(200).json(dailyStats)
   } catch (error) {
     console.error('Error fetching monthly stats:', error)
-    res.status(500).json({ error: 'Internal server error' })
+    res.status(500).json()
   }
 })
 
