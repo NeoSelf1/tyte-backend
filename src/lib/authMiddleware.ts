@@ -39,7 +39,6 @@ export const authMiddleware = async (req: AuthRequest, res: Response, next: Next
         throw new Error()
       }
     }
-    // console.log('user:', user)
     req.user = user
     next()
   } catch (error) {
