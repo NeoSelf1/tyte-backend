@@ -14,6 +14,7 @@ let expirationString = '31d'
 
 authRouter.get('/version', async (req, res) => {
   try {
+    console.log('versionCheck called from server')
     return res.status(200).json({ newVersion: '1.2', minVersion: '1.2' })
   } catch (error) {
     console.error('Token validation error:', error)
