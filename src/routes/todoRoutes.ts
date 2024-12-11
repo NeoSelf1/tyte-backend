@@ -18,61 +18,82 @@ todoRouter.post('/', async (req: AuthRequest, res) => {
     const user = req.user
 
     const { text } = req.body
+    const todoTexts = text
+      .split(',')
+      .map((t: string) => t.trim())
+      .filter((t: string) => t.length > 0)
+
     const tags = await Tag.find({ user: user._id })
-    const message = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'system',
-          content: process.env.GPT_message!,
-        },
-        {
-          role: 'user',
-          content: `
-내용: ${text}
-태그 배열: ${tags.map((tag: any) => tag.name)}
-`,
-        },
-      ],
-    })
+    const gptResults = await Promise.all(
+      todoTexts.map((todoText: string) =>
+        openai.chat.completions.create({
+          model: 'gpt-4o-mini',
+          messages: [
+            {
+              role: 'system',
+              content: process.env.GPT_message!,
+            },
+            {
+              role: 'user',
+              content: `
+  내용: ${todoText}
+  태그 배열: ${tags.map((tag: any) => tag.name)}
+  `,
+            },
+          ],
+        }),
+      ),
+    )
 
-    if (message.choices[0].message.content) {
-      var result = JSON.parse(message.choices[0].message.content)
-      if (!result.isValid) {
-        return res.status(402).json()
-      }
+    const validTodos = gptResults
+      .map((message, index) => {
+        if (!message.choices[0].message.content) {
+          console.error(`No content in GPT response for todo: ${todoTexts[index]}`)
+          return null
+        }
 
-      const formattedResult = await Promise.all(
-        result.todos?.map(async (_todo: any) => {
-          // GPT api 반환값 필드이기에, 모델 스키마와 필드명 상이함 | ex. _todo.tag = "개발"
-          const tag: any = await Tag.findOne({ name: _todo.tag, user: user._id })
+        const result = JSON.parse(message.choices[0].message.content)
+        if (!result.isValid) {
+          console.error(`Invalid format in GPT response for todo: ${todoTexts[index]}`)
+          return null
+        }
 
-          const todoData = {
-            raw: text,
-            title: _todo.title,
-            isImportant: _todo.isImportant,
-            isLife: _todo.isLife,
-            tagId: tag ? tag._id.toString() : null,
-            difficulty: _todo.difficulty,
-            estimatedTime: _todo.estimatedTime,
-            deadline: _todo.isDeadlineRelative ? convertKoreanDateToYYYYMMDD(_todo.deadline) : _todo.deadline,
-            isCompleted: false,
-            user: user._id,
-          }
-          const todo = new Todo(todoData)
-          await todo.save()
+        return result.todo
+      })
+      .filter((todo): todo is NonNullable<typeof todo> => todo !== null)
 
-          // 해당 날짜에 대한 균형 지수, 태그들 정보 갱신
-          await updateDailyStats(todoData.deadline, user._id)
-          const populatedTodo = await todo.populate('tagId')
-          return populatedTodo // 확인 필요 -> 굳이 다 보내야함?
-        }) ?? [],
-      )
-      console.log(formattedResult)
-      res.status(200).json(formattedResult)
-    } else {
+    if (validTodos.length === 0) {
       return res.status(402).json()
     }
+
+    const formattedResult = await Promise.all(
+      validTodos.map(async (_todo: any) => {
+        // GPT api 반환값 필드이기에, 모델 스키마와 필드명 상이함 | ex. _todo.tag = "개발"
+        const tag: any = await Tag.findOne({ name: _todo.tag, user: user._id })
+
+        const todoData = {
+          raw: text,
+          title: _todo.title,
+          isImportant: _todo.isImportant,
+          isLife: _todo.isLife,
+          tagId: tag ? tag._id.toString() : null,
+          difficulty: _todo.difficulty,
+          estimatedTime: _todo.estimatedTime,
+          deadline: _todo.isDeadlineRelative ? convertKoreanDateToYYYYMMDD(_todo.deadline) : _todo.deadline,
+          isCompleted: false,
+          user: user._id,
+        }
+        const todo = new Todo(todoData)
+        await todo.save()
+
+        await updateDailyStats(todoData.deadline, user._id)
+        const populatedTodo = await todo.populate('tagId')
+        return populatedTodo
+      }),
+    )
+
+    console.log(formattedResult)
+    res.status(200).json(formattedResult)
   } catch (error) {
     console.error('Error creating todo:', error)
     res.status(500).json()
