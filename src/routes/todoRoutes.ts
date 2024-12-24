@@ -17,7 +17,7 @@ todoRouter.post('/', async (req: AuthRequest, res) => {
     await connectToDb()
     const user = req.user
 
-    const { text } = req.body
+    const { text, selectedDate } = req.body
     const todoTexts = text
       .split(',')
       .map((t: string) => t.trim())
@@ -70,6 +70,13 @@ todoRouter.post('/', async (req: AuthRequest, res) => {
       validTodos.map(async (_todo: any) => {
         // GPT api 반환값 필드이기에, 모델 스키마와 필드명 상이함 | ex. _todo.tag = "개발"
         const tag: any = await Tag.findOne({ name: _todo.tag, user: user._id })
+        var deadlineDate
+        try {
+          // 상대적인 마감기한을 포착했지만, 알고리즘에서 걸러내지 못했을때 + 상대적안 마감기한 찾지 못하였으며 명시적인 마감기한 또한 없었을 때
+          deadlineDate = _todo.isDeadlineRelative ? convertKoreanDateToYYYYMMDD(_todo.deadline) : _todo.deadline
+        } catch {
+          deadlineDate = '-1'
+        }
 
         const todoData = {
           raw: text,
@@ -79,7 +86,7 @@ todoRouter.post('/', async (req: AuthRequest, res) => {
           tagId: tag ? tag._id.toString() : null,
           difficulty: _todo.difficulty,
           estimatedTime: _todo.estimatedTime,
-          deadline: _todo.isDeadlineRelative ? convertKoreanDateToYYYYMMDD(_todo.deadline) : _todo.deadline,
+          deadline: deadlineDate == '-1' ? selectedDate : deadlineDate,
           isCompleted: false,
           user: user._id,
         }
