@@ -186,3 +186,34 @@ async function updateDataScript() {
 }
 
 // updateDataScript()
+// getHeartRate()
+
+export async function getHeartRate() {
+  try {
+    connectToDb()
+    // User 모델 가져오기
+    const HeartRate = mongoose.model('HeartRate')
+    const data = await HeartRate.find({
+      time: {
+        $gte: '11:28-19:30:00',
+        $lte: '11:28-21:30:00',
+      },
+      index: 1,
+    })
+      .sort({ time: 1 })
+      .exec()
+
+    const heartRate = data.map((item) => item.heartRate)
+    // console.log(heartRate.length)
+    // console.log(Math.max(...heartRate), Math.min(...heartRate))
+    // console.log(JSON.stringify(heartRate))
+
+    // console.log(JSON.stringify(data.map((item) => `${item.heartRate} in ${item.time.suffix}`)))
+  } catch (error: any) {
+    if (error.code === 27) {
+      console.log('Index does not exist, no action needed')
+    } else {
+      console.error('Error removing username index:', error)
+    }
+  }
+}
