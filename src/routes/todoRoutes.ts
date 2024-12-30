@@ -116,7 +116,7 @@ todoRouter.get('/:deadline', async (req: AuthRequest, res) => {
     const todos = await Todo.find({ deadline, user: userId })
       .populate('tagId') // 태그 정보도 함께 가져옴
       // 먼저 중요한 Todo (isImportant: true)를 나열, 그 다음 생성 시간의 역순으로 정렬
-      .sort({ isImportant: -1, createdAt: -1 })
+      .sort({ isImportant: -1, createdAt: -1, title: 1 })
 
     return res.status(200).json(todos)
   } catch (error) {
