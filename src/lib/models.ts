@@ -20,7 +20,7 @@ const todoSchema = new mongoose.Schema(
     isCompleted: { type: Boolean, required: true },
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   },
-  { timestamps: true },
+  { timestamps: true, toJSON: { getters: true } },
 )
 
 const userSchema = new mongoose.Schema({

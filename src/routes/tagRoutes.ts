@@ -13,8 +13,8 @@ tagRouter.post('/', async (req: AuthRequest, res) => {
     const { name, color } = req.body
     const newTag = new Tag({ name, color, user: req.user._id })
     await newTag.save()
-
-    return res.status(200).json({ id: newTag._id })
+    console.log(newTag)
+    return res.status(200).json(newTag)
   } catch (error) {
     console.error('Error creating tag:', error)
     res.status(500).json()
@@ -43,7 +43,7 @@ tagRouter.put('/:id', async (req: AuthRequest, res) => {
       return res.status(403).json()
     }
 
-    return res.status(200).json({ id: updatedTag._id })
+    return res.status(200).json(updatedTag)
   } catch (error) {
     console.error('Error updating tag:', error)
     res.status(500).json()
@@ -64,7 +64,7 @@ tagRouter.delete('/:id', async (req: AuthRequest, res) => {
     // $pull = 특정 조건에 맞는 요소 제거하는데에 사용.
     await Todo.updateMany({ tagId: id, user: req.user._id }, { $set: { tagId: null } })
 
-    return res.status(200).json({ id: deletedTag._id })
+    return res.status(200).json(deletedTag._id)
   } catch (error) {
     console.error('Error deleting tag:', error)
     res.status(500).json()

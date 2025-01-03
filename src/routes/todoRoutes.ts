@@ -88,7 +88,7 @@ todoRouter.post('/', async (req: AuthRequest, res) => {
           estimatedTime: _todo.estimatedTime,
           deadline: deadlineDate == '-1' ? selectedDate : deadlineDate,
           isCompleted: false,
-          user: user._id,
+          user: user._id
         }
         const todo = new Todo(todoData)
         await todo.save()
@@ -135,7 +135,7 @@ todoRouter.get('/friend/:friendId/:deadline', async (req: AuthRequest, res) => {
     })
       .populate('tagId') // 태그 정보도 함께 가져옴
       // 먼저 중요한 Todo (isImportant: true)를 나열, 그 다음 생성 시간의 역순으로 정렬
-      .sort({ isImportant: -1, createdAt: -1 })
+      .sort({ isImportant: -1, createdAt: -1, title: 1 })
 
     return res.status(200).json(todos)
   } catch (error) {
