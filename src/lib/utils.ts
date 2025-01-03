@@ -1,7 +1,6 @@
 import mongoose from 'mongoose'
 import { BalanceIndexRange, balanceNumMessages } from './data'
 import { isDBDevelopment } from './authMiddleware'
-import { Tag, User } from './models'
 require('dotenv').config()
 
 interface Connection {
@@ -44,20 +43,6 @@ export const getBalanceMessage = (balanceNum: number) => {
   // 랜덤하게 메시지 선택
   const randomIndex = Math.floor(Math.random() * messages.length)
   return messages[randomIndex]
-}
-
-export const getTodayDate = () => {
-  const options = { timeZone: 'Asia/Seoul', hour12: false }
-  const today = new Date()
-  const koreaTime = today.toLocaleString('en-US', options)
-  const koreaDate = new Date(koreaTime)
-
-  const year = koreaDate.getFullYear()
-  const month = String(koreaDate.getMonth() + 1).padStart(2, '0')
-  const day = String(koreaDate.getDate()).padStart(2, '0')
-  const dayOfWeek = ['일', '월', '화', '수', '목', '금', '토'][koreaDate.getDay()]
-
-  return `${year}-${month}-${day}-${dayOfWeek}`
 }
 
 export const getTodayTime = () => {
@@ -129,6 +114,7 @@ export const convertKoreanDateToYYYYMMDD = (koreanDate: string) => {
     targetDate.setDate(targetDate.getDate() + ((targetDay + 7 - targetDate.getDay()) % 7))
   } else {
     console.log('예외 케이스', koreanDate)
+    throw new Error(`Invalid date format: ${koreanDate}`)
   }
 
   const year = targetDate.getFullYear()

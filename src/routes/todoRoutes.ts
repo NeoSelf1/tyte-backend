@@ -17,7 +17,7 @@ todoRouter.post('/', async (req: AuthRequest, res) => {
     await connectToDb()
     const user = req.user
 
-    const { text } = req.body
+    const { text, selectedDate } = req.body
     const todoTexts = text
       .split(',')
       .map((t: string) => t.trim())
@@ -70,6 +70,13 @@ todoRouter.post('/', async (req: AuthRequest, res) => {
       validTodos.map(async (_todo: any) => {
         // GPT api 반환값 필드이기에, 모델 스키마와 필드명 상이함 | ex. _todo.tag = "개발"
         const tag: any = await Tag.findOne({ name: _todo.tag, user: user._id })
+        var deadlineDate
+        try {
+          // 상대적인 마감기한을 포착했지만, 알고리즘에서 걸러내지 못했을때 + 상대적안 마감기한 찾지 못하였으며 명시적인 마감기한 또한 없었을 때
+          deadlineDate = _todo.isDeadlineRelative ? convertKoreanDateToYYYYMMDD(_todo.deadline) : _todo.deadline
+        } catch {
+          deadlineDate = '-1'
+        }
 
         const todoData = {
           raw: text,
@@ -79,9 +86,9 @@ todoRouter.post('/', async (req: AuthRequest, res) => {
           tagId: tag ? tag._id.toString() : null,
           difficulty: _todo.difficulty,
           estimatedTime: _todo.estimatedTime,
-          deadline: _todo.isDeadlineRelative ? convertKoreanDateToYYYYMMDD(_todo.deadline) : _todo.deadline,
+          deadline: deadlineDate == '-1' ? selectedDate : deadlineDate,
           isCompleted: false,
-          user: user._id,
+          user: user._id
         }
         const todo = new Todo(todoData)
         await todo.save()
@@ -109,7 +116,7 @@ todoRouter.get('/:deadline', async (req: AuthRequest, res) => {
     const todos = await Todo.find({ deadline, user: userId })
       .populate('tagId') // 태그 정보도 함께 가져옴
       // 먼저 중요한 Todo (isImportant: true)를 나열, 그 다음 생성 시간의 역순으로 정렬
-      .sort({ isImportant: -1, createdAt: -1 })
+      .sort({ isImportant: -1, createdAt: -1, title: 1 })
 
     return res.status(200).json(todos)
   } catch (error) {
@@ -128,7 +135,7 @@ todoRouter.get('/friend/:friendId/:deadline', async (req: AuthRequest, res) => {
     })
       .populate('tagId') // 태그 정보도 함께 가져옴
       // 먼저 중요한 Todo (isImportant: true)를 나열, 그 다음 생성 시간의 역순으로 정렬
-      .sort({ isImportant: -1, createdAt: -1 })
+      .sort({ isImportant: -1, createdAt: -1, title: 1 })
 
     return res.status(200).json(todos)
   } catch (error) {
